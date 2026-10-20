@@ -4,7 +4,7 @@
 
 The platform's own repositories whose pipelines Pipelines-as-Code runs on
 the cluster: `gitops` (its merge checks), `gitops-scanner`, `pac-demo`,
-`provider-forgejo`, `provider-artifact-keeper`. Teams' repositories get theirs
+`provider-forgejo`, `provider-artifact-keeper`, `talos-install`, `infra`, `lb`. Teams' repositories get theirs
 from the team chart ([What a team gets](team-resources.md#team-team-ci)). To
 add one: [Add a platform CI repository](../how-to/add-a-platform-ci-repository.md).
 

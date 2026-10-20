@@ -34,6 +34,12 @@ spec:
       namespace: provider-forgejo
     - server: https://kubernetes.default.svc
       namespace: provider-artifact-keeper
+    - server: https://kubernetes.default.svc
+      namespace: talos-install
+    - server: https://kubernetes.default.svc
+      namespace: infra
+    - server: https://kubernetes.default.svc
+      namespace: lb
   clusterResourceWhitelist:
     - group: ''
       kind: Namespace
