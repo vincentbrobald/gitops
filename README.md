@@ -85,4 +85,6 @@ come from deploy-talos.py: see [talos-install](https://github.com/vincentbrobald
 
 ## License
 
-MIT (LICENSE), © 2026 Vincent Brobald.
+MIT (LICENSE), © 2026 Vincent Brobald. The vendored Tekton releases under
+`base/tekton/` keep their own license, Apache-2.0 (NOTICE,
+`LICENSES/Apache-2.0.txt`).

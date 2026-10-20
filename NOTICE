@@ -1,0 +1,16 @@
+gitops
+Copyright (c) 2026 Vincent Brobald
+
+Our own files are under the MIT License (LICENSE). These third-party files
+are kept unchanged, under their original license, the Apache License 2.0
+(LICENSES/Apache-2.0.txt); where upstream wrote copyright notices into them,
+they are intact:
+
+- base/tekton/pipelines/release.yaml: Tekton Pipelines
+  (https://github.com/tektoncd/pipeline), Copyright The Tekton Authors.
+- base/tekton/dashboard/release.yaml: Tekton Dashboard
+  (https://github.com/tektoncd/dashboard), Copyright The Tekton Authors.
+- base/tekton/pipelines-as-code/release.k8s.yaml: Pipelines-as-Code
+  (https://github.com/tektoncd/pipelines-as-code), Copyright Red Hat.
+
+Each folder's kustomization.yaml names the release's URL and digest.

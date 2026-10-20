@@ -55,6 +55,7 @@ tools/generated.py             checks deploy-talos.py's files against generated/
 .gitops-check.yaml            entry points and settings of the merge-request checks
 docs/                         this documentation; docs/diagrams.py draws its SVGs
 .tekton/pr-check.yaml         the merge-request checks' PipelineRun (read from main only)
+LICENSE, NOTICE, LICENSES/    MIT for our files; NOTICE: the vendored releases' licence (Apache-2.0)
 ```
 
 ## Per cluster or once per site
