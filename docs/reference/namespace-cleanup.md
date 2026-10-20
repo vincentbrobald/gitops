@@ -47,6 +47,7 @@ Crossplane provider's kinds).
 | Item | Value |
 |---|---|
 | Schedule | every 5 minutes, one run at a time |
+| Retries | an API call answered 429 or 5xx, or not answered, is tried 5 times (waits 1, 2, 4, 8 s, or `Retry-After`); then the run fails and the next starts over |
 | `GRACE_SECONDS` | `600` |
 | `DRY_RUN` | `false`; `true` logs what it would do |
 | `ARGOCD_NAMESPACE` | `argocd` |

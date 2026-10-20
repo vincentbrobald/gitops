@@ -1,4 +1,4 @@
-# provider-artifact-keeper (package providers/artifact-keeper): Artifact
+# provider-artifact-keeper (package below): Artifact
 # Keeper's repositories, permissions, OIDC login, service accounts and tokens,
 # kinds in artifactkeeper.crossplane.brobald.be. The site CA from trust-manager
 # (ConfigMap site-root-ca); credentials: Secret artifact-keeper-credentials.

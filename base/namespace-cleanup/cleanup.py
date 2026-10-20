@@ -19,7 +19,9 @@ Owners mark their namespaces argocd.argoproj.io/sync-options: Delete=false,
 so that Argo CD deletes everything in them but not the namespaces.
 
 Environment: ARGOCD_NAMESPACE (argocd), GRACE_SECONDS (600), DRY_RUN (false).
-Standard library only; the pod's service account calls the API server.
+Standard library only; the pod's service account calls the API server. A
+busy or restarting API server (429, 5xx, no connection) is retried a few
+times, honouring Retry-After; then the run fails and the next one starts over.
 """
 import json
 import os
@@ -43,12 +45,31 @@ CTX = ssl.create_default_context(cafile=f"{SA}/ca.crt")
 TOKEN = open(f"{SA}/token").read().strip()
 
 
+RETRY_CODES = {429, 500, 502, 503, 504}
+ATTEMPTS = 5            # waits 1, 2, 4, 8 s (or Retry-After, at most 30 s): within the Job's deadline
+
+
 def call(method: str, path: str, body: dict | None = None, ctype: str = "application/json") -> dict:
-    req = urllib.request.Request(API + path, method=method,
-                                 data=json.dumps(body).encode() if body is not None else None,
-                                 headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": ctype})
-    with urllib.request.urlopen(req, context=CTX, timeout=30) as r:
-        return json.loads(r.read() or b"{}")
+    data = json.dumps(body).encode() if body is not None else None
+    for attempt in range(ATTEMPTS):
+        req = urllib.request.Request(API + path, method=method, data=data,
+                                     headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": ctype})
+        try:
+            with urllib.request.urlopen(req, context=CTX, timeout=30) as r:
+                return json.loads(r.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            if e.code not in RETRY_CODES or attempt == ATTEMPTS - 1:
+                raise
+            after = e.headers.get("Retry-After", "")
+            wait = min(int(after), 30) if after.isdigit() else 2 ** attempt
+            print(f"{method} {path}: HTTP {e.code}, retrying in {wait}s", flush=True)
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt == ATTEMPTS - 1:
+                raise
+            wait = 2 ** attempt
+            print(f"{method} {path}: {e}, retrying in {wait}s", flush=True)
+        time.sleep(wait)
+    raise AssertionError("unreachable")
 
 
 def log(ns: str, msg: str) -> None:

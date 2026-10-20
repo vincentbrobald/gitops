@@ -1,4 +1,4 @@
-# provider-forgejo (alice/provider-forgejo, package providers/forgejo):
+# provider-forgejo (alice/provider-forgejo, package below):
 # Forgejo repositories and their settings (deploy keys, webhooks,
 # collaborators, branch protection), organizations, teams, users and their
 # tokens as managed resources, kinds in *.forgejo.m.crossplane.brobald.be.
