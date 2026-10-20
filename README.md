@@ -38,6 +38,7 @@ understand.
 | A namespace for a team's application | [Add an environment](docs/how-to/add-an-environment.md) |
 | Take a team or environment away | [Remove a team or an environment](docs/how-to/remove-a-team-or-environment.md) |
 | CI for one of the platform's repositories | [Add a platform CI repository](docs/how-to/add-a-platform-ci-repository.md) |
+| The providers' and the merge check's images from your own CI and Harbor | [Build and host the images yourself](docs/how-to/build-and-host-the-images.md) |
 | A new platform service or add-on | [Add a platform Application](docs/how-to/add-an-application.md) |
 | A Crossplane kind not installed yet | [Add or remove a Crossplane kind](docs/how-to/add-a-crossplane-kind.md) |
 | Manage something that already exists in Keycloak, Forgejo, Harbor | [Take over an existing external object](docs/how-to/take-over-an-existing-object.md) |

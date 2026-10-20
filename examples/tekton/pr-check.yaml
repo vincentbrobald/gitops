@@ -1,0 +1,170 @@
+# Merge-request checks of this repository, run by Pipelines-as-Code on
+# cluster lab (namespace gitops-ci) for every pull request to main: the
+# gitops-check image (alice/gitops-scanner) renders the pull request
+# before and after with the render-only Argo CD (argocd-preview), checks the
+# result and posts the report on the pull request. Its commit status
+# "Pipelines as Code CI / gitops-check" is required to merge.
+#
+# This file is read from main only (Repository setting
+# pipelinerun_provenance: default_branch): a change here applies to the pull
+# requests opened after it is merged.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: gitops-check
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[pull_request]"
+    pipelinesascode.tekton.dev/on-target-branch: "[main]"
+    pipelinesascode.tekton.dev/max-keep-runs: "10"
+spec:
+  pipelineSpec:
+    workspaces:
+      - name: source
+      - name: git-auth
+      - name: ca
+    tasks:
+      - name: check
+        workspaces:
+          - {name: source, workspace: source}
+          - {name: git-auth, workspace: git-auth}
+          - {name: ca, workspace: ca}
+        taskSpec:
+          workspaces:
+            - name: source
+            - name: git-auth
+            - name: ca
+          stepTemplate:
+            # Both steps in the scanner's image: same (unprivileged) user, so
+            # the check can add worktrees to the clone.
+            image: docker.io/vincentbrobald/gitops-scanner:latest
+            imagePullPolicy: Always
+            workingDir: $(workspaces.source.path)
+            env:
+              - {name: HOME, value: /tekton/home}
+          steps:
+            # The whole history: 'before' is the target branch, and the check
+            # verifies the pull request is up to date with it. The credentials
+            # stay in their workspace, mounted only into the steps that name it
+            # (isolated workspaces): the pull request's own scripts (below,
+            # when it changes tools/) never see them.
+            - name: clone
+              workspaces:
+                - {name: git-auth}
+                - {name: ca}
+              script: |
+                #!/bin/sh
+                set -eu
+                git config --global http.sslCAInfo $(workspaces.ca.path)/site-root-ca.crt
+                # The workspace belongs to root, the steps run as the image's
+                # user: git refuses such a repository unless told it is safe.
+                git config --global --add safe.directory '*'
+                git init -q .
+                git remote add origin "{{ repo_url }}"
+                # Read-only use of the credentials: only "get" goes to the
+                # store (its write-backs would fail on the Secret's volume).
+                auth='credential.helper=!f() { if [ "$1" = get ]; then git credential-store --file=$(workspaces.git-auth.path)/.git-credentials get; fi; }; f'
+                git -c "$auth" fetch -q origin "+refs/heads/{{ target_branch }}:refs/remotes/origin/{{ target_branch }}"
+                git -c "$auth" fetch -q origin "{{ revision }}"
+                git checkout -q --detach "{{ revision }}"
+                git log -1 --format='%h %s'
+                # The target branch's tools/ scripts: they check and generate
+                # (trusted code, from the protected branch).
+                git worktree add -q --detach /tekton/home/main "origin/{{ target_branch }}"
+            # What the pull request adds without its generated files (a team,
+            # an environment, a CI repository): the target branch's generators
+            # make them (keys, random secrets, encrypted for the recipients'
+            # public age keys; namespace lists), and they are committed to the
+            # pull request's branch as pac-bot. The run then stops: the push
+            # starts a new one, which checks the result. A pull request that
+            # changes tools/ itself runs its own generators by hand.
+            - name: generate
+              workspaces:
+                - {name: git-auth}
+                - {name: ca}        # git's sslCAInfo, for the push
+              script: |
+                #!/bin/sh
+                set -eu
+                if ! git diff --quiet "origin/{{ target_branch }}...HEAD" -- tools/; then
+                  echo "the scripts change in this pull request: run its generators yourself (docs/reference/tools.md)"
+                  exit 0
+                fi
+                m=/tekton/home/main/tools
+                token=/tekton/home/pac-bot-token
+                trap 'rm -f "$token"' EXIT
+                python3 -I -c 'import sys, urllib.parse
+                for line in open(sys.argv[1]):
+                    u = urllib.parse.urlsplit(line.strip())
+                    if u.password: print(urllib.parse.unquote(u.password), end=""); break' \
+                  "$(workspaces.git-auth.path)/.git-credentials" > "$token"
+                export GITOPS_ROOT="$PWD" PAC_BOT_TOKEN_FILE="$token"
+                python3 -I $m/teams.py generate
+                python3 -I $m/ci.py generate
+                if [ -z "$(git status --porcelain)" ]; then
+                  echo "nothing to generate"
+                  exit 0
+                fi
+                git add -A
+                git -c user.name=pac-bot -c user.email=pac-bot@forgejo.example.org \
+                  commit -q -m "Generated files (tools/teams.py, tools/ci.py)"
+                git -c 'credential.helper=!f() { if [ "$1" = get ]; then git credential-store --file=$(workspaces.git-auth.path)/.git-credentials get; fi; }; f' \
+                  push -q origin "HEAD:refs/heads/{{ source_branch }}"
+                echo "Generated files committed to {{ source_branch }} as $(git rev-parse --short HEAD);"
+                echo "the checks run again on that commit."
+                exit 1
+            # The target branch's scripts, unless the pull request changes them.
+            - name: teams
+              script: |
+                #!/bin/sh
+                set -eu
+                h=/tekton/home/main/tools
+                git diff --quiet "origin/{{ target_branch }}...HEAD" -- tools/ || h=tools
+                GITOPS_ROOT="$PWD" python3 -I $h/teams.py check
+            # The platform's CI repositories (clusters/<cluster>/ci) and their
+            # generated files (tools/ci.py): a missing Secret breaks a pipeline.
+            - name: ci-repositories
+              script: |
+                #!/bin/sh
+                set -eu
+                h=/tekton/home/main/tools
+                git diff --quiet "origin/{{ target_branch }}...HEAD" -- tools/ || h=tools
+                GITOPS_ROOT="$PWD" python3 -I $h/ci.py check
+            # What deploy-talos.py generates (addons/generated/, generated/)
+            # must be as it wrote it (generated/CHECKSUMS).
+            - name: generated
+              script: |
+                #!/bin/sh
+                set -eu
+                h=/tekton/home/main/tools
+                git diff --quiet "origin/{{ target_branch }}...HEAD" -- tools/ || h=tools
+                GITOPS_ROOT="$PWD" python3 -I $h/generated.py check
+            - name: check
+              workspaces:
+                - {name: git-auth}
+                - {name: ca}
+              env:
+                - name: ARGOCD_SERVER
+                  valueFrom: {secretKeyRef: {name: argocd-preview, key: server}}
+                - name: ARGOCD_TOKEN
+                  valueFrom: {secretKeyRef: {name: argocd-preview, key: token}}
+                - {name: KUBECONFORM_CACHE, value: /tekton/home/kubeconform}
+              script: |
+                #!/bin/sh
+                set -eu
+                # Forgejo and the repository: the pull request's own.
+                forgejo=$(echo "{{ repo_url }}" | sed 's|^\(https://[^/]*\)/.*|\1|')
+                exec gitops-check --repo . \
+                  --base "origin/{{ target_branch }}" --head "{{ revision }}" \
+                  --run-id "$(context.pipelineRun.name)" \
+                  --forgejo-url "$forgejo" --forgejo-repo "{{ repo_owner }}/{{ repo_name }}" \
+                  --pr "{{ pull_request_number }}" \
+                  --git-credentials "$(workspaces.git-auth.path)/.git-credentials" \
+                  --cafile "$(workspaces.ca.path)/site-root-ca.crt"
+  workspaces:
+    - name: source
+      emptyDir: {}
+    - name: git-auth
+      secret:
+        secretName: "{{ git_auth_secret }}"
+    - name: ca
+      configMap:
+        name: site-root-ca

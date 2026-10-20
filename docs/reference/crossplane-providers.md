@@ -22,6 +22,9 @@ provider and credential. The conventions behind them:
 | `provider-harbor` | `ghcr.io/crossplane-contrib/provider-upjet-harbor` | `*.harbor.m.crossplane.io` |
 | `artifact-keeper` | `docker.io/vincentbrobald/provider-artifact-keeper` | `artifactkeeper.crossplane.brobald.be` |
 
+The packages of `forgejo` and `artifact-keeper` can come from your own CI and
+Harbor: [Build and host the images yourself](../how-to/build-and-host-the-images.md).
+
 Versions: `clusters/lab/crossplane/`. Our providers' groups are under
 `brobald.be`, the owner's public domain, so that no site name reaches the
 published copy of the lab.
