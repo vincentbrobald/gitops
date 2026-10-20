@@ -30,6 +30,7 @@ encrypted for its own keys (see
 | `clusters/<cluster>/argocd-preview/secret-argocd-preview-creds-forgejo.enc.yaml` | `argocd-preview/creds-forgejo` | `url`, `type`, `sshPrivateKey` | by hand: a read-only deploy key of this repository ([Merge checks](merge-checks.md)) |
 | `clusters/<cluster>/tekton/dashboard/secret-tekton-dashboard-oauth2-proxy.enc.yaml` | `tekton-dashboard/oauth2-proxy` | `cookie-secret` | by hand: random |
 | `clusters/<cluster>/ci/<name>/*.enc.yaml` | the platform CI repositories' | | `tools/ci.py` ([Platform CI repositories](ci-repository.md)) |
+| `clusters/<cluster>/ci/provider-*/dockerhub-push.enc.yaml` | `provider-*/dockerhub-push` | `username`, `token` | by hand: a Docker Hub access token (the providers' public images) |
 
 The infra playbooks take Keycloak's client secret, the Forgejo token and
 Harbor's admin password from these Secrets when they exist (their lookup

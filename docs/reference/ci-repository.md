@@ -70,7 +70,9 @@ Made by `tools/ci.py generate` when missing:
 | `forgejo-webhook.enc.yaml` | `forgejo-webhook` | the webhook's config for Crossplane: `url`, `content_type`, `secret` (the same) | with `forgejo` |
 | `registry-push.enc.yaml` | `registry-push` | `registry`, `username` (`robot$<project>+<robot>`), `password` (upper and lower case, a digit) | with `harbor` |
 
-Other `*.enc.yaml` files in the folder (e.g. `argocd-preview` of `gitops`) are
+Other `*.enc.yaml` files in the folder (e.g. `argocd-preview` of `gitops`,
+`dockerhub-push` of the two providers: Docker Hub credentials, keys `username`
+and `token`, made by hand) are
 listed by the generated `secret-generator.yaml` too.
 
 ## Settings kept by Ansible

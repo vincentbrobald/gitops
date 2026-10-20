@@ -10,7 +10,7 @@ kind: Provider
 metadata:
   name: forgejo
 spec:
-  package: registry.example.org/providers/forgejo:v0.7.0-236f815
+  package: docker.io/vincentbrobald/provider-forgejo:v0.7.0-836701d
   runtimeConfigRef:
     name: provider-forgejo
 ---

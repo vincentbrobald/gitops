@@ -18,9 +18,9 @@ provider and credential. The conventions behind them:
 | Provider object | Package | Kinds in |
 |---|---|---|
 | `provider-keycloak` | `xpkg.crossplane.io/crossplane-contrib/provider-keycloak` | `*.keycloak.m.crossplane.io` |
-| `forgejo` | `registry.example.org/providers/forgejo` | `*.forgejo.m.crossplane.brobald.be` |
+| `forgejo` | `docker.io/vincentbrobald/provider-forgejo` | `*.forgejo.m.crossplane.brobald.be` |
 | `provider-harbor` | `ghcr.io/crossplane-contrib/provider-upjet-harbor` | `*.harbor.m.crossplane.io` |
-| `artifact-keeper` | `registry.example.org/providers/artifact-keeper` | `artifactkeeper.crossplane.brobald.be` |
+| `artifact-keeper` | `docker.io/vincentbrobald/provider-artifact-keeper` | `artifactkeeper.crossplane.brobald.be` |
 
 Versions: `clusters/lab/crossplane/`. Our providers' groups are under
 `brobald.be`, the owner's public domain, so that no site name reaches the
