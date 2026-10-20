@@ -44,6 +44,7 @@ understand.
 | Manage something that already exists in Keycloak, Forgejo, Harbor | [Take over an existing external object](docs/how-to/take-over-an-existing-object.md) |
 | Rename, split or move Applications without recreating objects | [Move objects between Applications](docs/how-to/move-objects-between-applications.md) |
 | A Secret | [Edit an encrypted Secret](docs/how-to/edit-an-encrypted-secret.md) |
+| Every Secret of a new site | [Create a new site's Secrets](docs/how-to/create-a-new-sites-secrets.md) |
 | A new root CA | [Change the site CA](docs/how-to/change-the-site-ca.md) |
 | Another cluster deployed from this repository | [Add a cluster](docs/how-to/add-a-cluster.md) |
 | New Tekton, Pipelines-as-Code or Dashboard release | [Upgrade Tekton](docs/how-to/upgrade-tekton.md) |

@@ -11,6 +11,13 @@ files. The merge check runs each `check` ([Merge checks](merge-checks.md)).
 | `tools/ci.py` | checks `clusters/<cluster>/ci/` (the files' content: the chart's schema); fails if a generated file is stale | writes each folder's `kustomization.yaml` and `secret-generator.yaml`; makes missing Secrets |
 | `tools/generated.py` | compares `addons/generated/` and `generated/` with `generated/CHECKSUMS` | (none: deploy-talos.py writes those) |
 
+`tools/bootstrap.py` is run by hand, once per cluster: `write` makes the
+Secrets no other tool makes (the Crossplane providers' credentials, the
+merge check's read-only deploy key, the Tekton Dashboard's cookie secret)
+from the infra playbooks' credentials, never replacing one; `check` compares
+the existing ones with those credentials ("same" or "differs", never a
+value). Order of a new site: [Create a new site's Secrets](../how-to/create-a-new-sites-secrets.md).
+
 ## Who runs `generate`
 
 The merge check does: a pull request that adds a team, an environment or a CI
@@ -27,6 +34,7 @@ key, except in the case below.
 | Script | Needs |
 |---|---|
 | `tools/teams.py` | `ssh-keygen`, `sops` (`SOPS=<path>` if not on `PATH`) |
+| `tools/bootstrap.py` | `sops`; the infra playbooks' secrets tree (`--secrets-dir`); for `check`, a private key (`SOPS_AGE_KEY_FILE`) |
 | `tools/ci.py` | `sops`; `PAC_BOT_TOKEN_FILE` (default `/root/lab/lab-secrets/forgejo/pac-bot-token`); a private key (`SOPS_AGE_KEY_FILE`) only to add `forgejo:` to a repository whose `forgejo-pac.enc.yaml` exists already (its webhook secret is copied) |
 
 | Variable | Meaning |

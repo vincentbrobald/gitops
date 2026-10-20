@@ -13,7 +13,7 @@ encrypted for its own keys (see
 | Who encrypts for whom | File | Written by |
 |---|---|---|
 | `clusters/<cluster>/` | `.sops.yaml` | `deploy-talos.py`, from the cluster file |
-| `applications/` (the teams') | `.sops.yaml` | by hand: the same keys as the clusters that run the teams |
+| `applications/` (the teams') | `.sops.yaml` | the same keys as the clusters that run the teams: `tools/bootstrap.py` copies the cluster's over the published placeholder |
 
 ## The Secrets
 
@@ -23,12 +23,12 @@ encrypted for its own keys (see
 | `applications/<org>/<team>/argocd/ci-bot.enc.yaml`, `ci-webhook.enc.yaml`, `ci-webhook-pac.enc.yaml` | `team-<team>/forgejo-bot`, `team-<team>/forgejo-webhook`, `ci-<team>/pac-webhook` | the CI user's password, the webhooks' secret | `tools/teams.py` |
 | `applications/<org>/<team>/argocd/tekton-dashboard.enc.yaml` | `team-<team>/tekton-dashboard-oauth2-proxy` | `cookie-secret` | `tools/teams.py` |
 | `clusters/<cluster>/generated/<topic>/secret-*.enc.yaml` | the add-ons' (Argo CD and Headlamp OIDC, Grafana, Talos backups) | | `deploy-talos.py`, from the cluster file |
-| `clusters/<cluster>/crossplane/secret-crossplane-system-keycloak-credentials.enc.yaml` | `crossplane-system/keycloak-credentials` | `client_id`, `client_secret`, `url`, `realm`, `keycloak_version` | by hand: Keycloak's client for Crossplane (infra) |
-| `clusters/<cluster>/crossplane/secret-crossplane-system-forgejo-credentials.enc.yaml` | `crossplane-system/forgejo-credentials` | `api_token`, `host` | by hand: the token of Forgejo's user for Crossplane (infra) |
-| `clusters/<cluster>/crossplane/secret-crossplane-system-harbor-credentials.enc.yaml` | `crossplane-system/harbor-credentials` | `username`, `password`, `credentials` | by hand: Harbor's admin (infra) |
-| `clusters/<cluster>/crossplane/secret-crossplane-system-artifact-keeper-credentials.enc.yaml` | `crossplane-system/artifact-keeper-credentials` | `url`, `token` | by hand: Artifact Keeper's API token (infra) |
-| `clusters/<cluster>/argocd-preview/secret-argocd-preview-creds-forgejo.enc.yaml` | `argocd-preview/creds-forgejo` | `url`, `type`, `sshPrivateKey` | by hand: a read-only deploy key of this repository ([Merge checks](merge-checks.md)) |
-| `clusters/<cluster>/tekton/dashboard/secret-tekton-dashboard-oauth2-proxy.enc.yaml` | `tekton-dashboard/oauth2-proxy` | `cookie-secret` | by hand: random |
+| `clusters/<cluster>/crossplane/secret-crossplane-system-keycloak-credentials.enc.yaml` | `crossplane-system/keycloak-credentials` | `client_id`, `client_secret`, `url`, `realm`, `keycloak_version` | `tools/bootstrap.py`, from Keycloak's client for Crossplane (infra) |
+| `clusters/<cluster>/crossplane/secret-crossplane-system-forgejo-credentials.enc.yaml` | `crossplane-system/forgejo-credentials` | `api_token`, `host` | `tools/bootstrap.py`, from the token of Forgejo's user for Crossplane (infra) |
+| `clusters/<cluster>/crossplane/secret-crossplane-system-harbor-credentials.enc.yaml` | `crossplane-system/harbor-credentials` | `username`, `password`, `credentials` | `tools/bootstrap.py`, from Harbor's admin (infra) |
+| `clusters/<cluster>/crossplane/secret-crossplane-system-artifact-keeper-credentials.enc.yaml` | `crossplane-system/artifact-keeper-credentials` | `url`, `token` | `tools/bootstrap.py`, from Artifact Keeper's API token (infra) |
+| `clusters/<cluster>/argocd-preview/secret-argocd-preview-creds-forgejo.enc.yaml` | `argocd-preview/creds-forgejo` | `url`, `type`, `sshPrivateKey` | `tools/bootstrap.py`, from this repository's read-only deploy key ([Merge checks](merge-checks.md)) |
+| `clusters/<cluster>/tekton/dashboard/secret-tekton-dashboard-oauth2-proxy.enc.yaml` | `tekton-dashboard/oauth2-proxy` | `cookie-secret` | `tools/bootstrap.py`: random |
 | `clusters/<cluster>/ci/<name>/*.enc.yaml` | the platform CI repositories' | | `tools/ci.py` ([Platform CI repositories](ci-repository.md)) |
 | `clusters/<cluster>/ci/{provider-*,gitops-scanner}/dockerhub-push.enc.yaml` | `<namespace>/dockerhub-push` | `username`, `token` | by hand: a Docker Hub access token (the public images of the providers and gitops-scanner) |
 
