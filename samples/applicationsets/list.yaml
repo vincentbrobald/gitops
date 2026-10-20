@@ -1,0 +1,41 @@
+# Sample: list generator. One Application per element: the same workload in
+# two environments, with per-environment replicas and name prefix.
+# Rendered by the merge-request checks only: no Application syncs samples/.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: sample-list
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - {env: dev, replicas: 1}
+          - {env: staging, replicas: 2}
+  template:
+    metadata:
+      name: 'sample-hello-{{ .env }}'
+      labels: {sample: list, env: '{{ .env }}'}
+    spec:
+      project: default
+      source:
+        repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+        targetRevision: main
+        path: samples/apps/hello
+        kustomize:
+          namePrefix: '{{ .env }}-'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'sample-hello-{{ .env }}'
+      syncPolicy:
+        syncOptions: [CreateNamespace=true]
+  # Values that a plain template field can't type (replicas is an integer).
+  templatePatch: |
+    spec:
+      source:
+        kustomize:
+          replicas:
+            - name: hello
+              count: {{ .replicas }}

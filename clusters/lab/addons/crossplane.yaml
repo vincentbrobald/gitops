@@ -1,0 +1,37 @@
+# Crossplane (core): manages resources outside the cluster as Kubernetes
+# objects, through providers. Its providers and their settings:
+# clusters/lab/crossplane (Application crossplane-providers).
+# Hand-written: deploy-talos.py leaves this file alone.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: crossplane
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: platform-infra
+  source:
+    repoURL: https://charts.crossplane.io/stable
+    chart: crossplane
+    targetRevision: 2.4.2
+    helm:
+      releaseName: crossplane
+      valuesObject:
+        # Packages from the site's registry (provider-forgejo): trust the site
+        # CA (ConfigMap site-root-ca, trust-manager: docs/explanation/site-ca.md).
+        registryCaBundleConfig: {name: site-root-ca, key: site-root-ca.crt}
+        # No default activation policy ("*" would install every kind of every
+        # provider: ~280 CRDs); clusters/lab/crossplane/activation.yaml lists
+        # the kinds used.
+        provider:
+          defaultActivations: []
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: crossplane-system
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    # Server-side apply: the chart's webhook TLS Secrets are created empty and
+    # filled by Crossplane; Argo CD then owns none of their data.
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: {limit: 10, backoff: {duration: 10s, factor: 2, maxDuration: 3m}}

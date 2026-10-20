@@ -1,0 +1,128 @@
+{{- if eq .Values.component "packages" }}
+# The team's packages in Artifact Keeper (artifacts.example.org), through
+# provider artifact-keeper (group artifactkeeper.crossplane.brobald.be):
+# - in team-{{ .Values.team }}: a hosted repository per format, {{ .Values.team }}-<format> (never
+#   deleted by Crossplane: no Delete, it holds the packages), a virtual one
+#   {{ .Values.team }}-<format>-all (the hosted, then the shared cache) for formats that have
+#   a cache, and read/write for the Keycloak group team-{{ .Values.team }}. That group
+#   appears in Artifact Keeper at its first member's login: until then the
+#   Permissions wait (Synced False, retried).
+# - in ci-{{ .Values.team }}: the team's CI, service account svc-ci-{{ .Values.team }} with read/write
+#   on the same repositories and a token restricted to them, in Secret
+#   artifact-keeper-push (keys token, username).
+{{- $team := .Values.team }}
+{{- range .Values.artifactKeeper.formats }}
+---
+apiVersion: artifactkeeper.crossplane.brobald.be/v1alpha1
+kind: Repository
+metadata:
+  name: {{ $team }}-{{ .format }}
+  namespace: {{ include "team.ns" $ }}
+spec:
+  managementPolicies: [Observe, Create, Update]
+  {{- include "team.crossplane" $ | nindent 2 }}
+  forProvider:
+    name: "{{ $team }} {{ .format }}"
+    description: "{{ .format }} packages of team {{ $team }}"
+    format: {{ .format }}
+    type: local
+---
+apiVersion: artifactkeeper.crossplane.brobald.be/v1alpha1
+kind: Permission
+metadata:
+  name: {{ $team }}-{{ .format }}-team
+  namespace: {{ include "team.ns" $ }}
+spec:
+  {{- include "team.crossplane" $ | nindent 2 }}
+  forProvider:
+    principal: {group: team-{{ $team }}}
+    repositoryRef: {name: {{ $team }}-{{ .format }}}
+    actions: [read, write]
+---
+apiVersion: artifactkeeper.crossplane.brobald.be/v1alpha1
+kind: Permission
+metadata:
+  name: {{ $team }}-{{ .format }}-ci
+  namespace: ci-{{ $team }}
+spec:
+  {{- include "team.crossplane" $ | nindent 2 }}
+  forProvider:
+    principal: {serviceAccountRef: {name: ci}}
+    repositoryKey: {{ $team }}-{{ .format }}
+    actions: [read, write]
+{{- if .cache }}
+---
+apiVersion: artifactkeeper.crossplane.brobald.be/v1alpha1
+kind: Repository
+metadata:
+  name: {{ $team }}-{{ .format }}-all
+  namespace: {{ include "team.ns" $ }}
+spec:
+  managementPolicies: [Observe, Create, Update]
+  {{- include "team.crossplane" $ | nindent 2 }}
+  forProvider:
+    name: "{{ $team }} {{ .format }} (with {{ .cache }})"
+    description: "{{ $team }}-{{ .format }}, then the cache {{ .cache }}"
+    format: {{ .format }}
+    type: virtual
+    members:
+      - repositoryRef: {name: {{ $team }}-{{ .format }}}
+      - key: {{ .cache }}
+---
+apiVersion: artifactkeeper.crossplane.brobald.be/v1alpha1
+kind: Permission
+metadata:
+  name: {{ $team }}-{{ .format }}-all-team
+  namespace: {{ include "team.ns" $ }}
+spec:
+  {{- include "team.crossplane" $ | nindent 2 }}
+  forProvider:
+    principal: {group: team-{{ $team }}}
+    repositoryRef: {name: {{ $team }}-{{ .format }}-all}
+    actions: [read]
+---
+apiVersion: artifactkeeper.crossplane.brobald.be/v1alpha1
+kind: Permission
+metadata:
+  name: {{ $team }}-{{ .format }}-all-ci
+  namespace: ci-{{ $team }}
+spec:
+  {{- include "team.crossplane" $ | nindent 2 }}
+  forProvider:
+    principal: {serviceAccountRef: {name: ci}}
+    repositoryKey: {{ $team }}-{{ .format }}-all
+    actions: [read]
+{{- end }}
+{{- end }}
+---
+apiVersion: artifactkeeper.crossplane.brobald.be/v1alpha1
+kind: ServiceAccount
+metadata:
+  name: ci
+  namespace: ci-{{ .Values.team }}
+spec:
+  {{- include "team.crossplane" . | nindent 2 }}
+  forProvider:
+    name: ci-{{ .Values.team }}
+    description: CI of team {{ .Values.team }} (Pipelines-as-Code in ci-{{ .Values.team }})
+---
+apiVersion: artifactkeeper.crossplane.brobald.be/v1alpha1
+kind: Token
+metadata:
+  name: ci
+  namespace: ci-{{ .Values.team }}
+spec:
+  {{- include "team.crossplane" . | nindent 2 }}
+  writeConnectionSecretToRef: {name: artifact-keeper-push}
+  forProvider:
+    serviceAccountRef: {name: ci}
+    name: pipelines
+    scopes: [read:artifacts, write:artifacts]
+    repositoryKeys:
+      {{- range .Values.artifactKeeper.formats }}
+      - {{ $team }}-{{ .format }}
+      {{- if .cache }}
+      - {{ $team }}-{{ .format }}-all
+      {{- end }}
+      {{- end }}
+{{- end }}

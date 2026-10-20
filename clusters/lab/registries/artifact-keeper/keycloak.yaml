@@ -1,0 +1,50 @@
+# Artifact Keeper's Keycloak client (realm example, provider-keycloak), its
+# secret published in Secret artifacts-oidc, and the flat "groups" claim:
+# Artifact Keeper turns the claim's groups into its own groups
+# (map_groups_to_groups), so team-<team> and registry-admins (its admins)
+# arrive with the login. Kept in Keycloak when this goes (no Delete);
+# LateInitialize saves the IDs Keycloak assigns.
+apiVersion: openidclient.keycloak.m.crossplane.io/v1alpha2
+kind: Client
+metadata:
+  name: artifact-keeper
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  writeConnectionSecretToRef: {name: artifacts-oidc}
+  forProvider:
+    realmId: example
+    clientId: artifact-keeper
+    name: Artifact Keeper (packages)
+    enabled: true
+    accessType: CONFIDENTIAL
+    pkceCodeChallengeMethod: S256
+    standardFlowEnabled: true
+    implicitFlowEnabled: false
+    directAccessGrantsEnabled: false
+    serviceAccountsEnabled: false
+    validRedirectUris: [https://artifacts.example.org/api/v1/auth/sso/oidc/callback]
+    webOrigins: [https://artifacts.example.org]
+    validPostLogoutRedirectUris: [https://artifacts.example.org]
+    frontchannelLogoutEnabled: false
+    fullScopeAllowed: true
+    consentRequired: false
+    useRefreshTokens: true
+---
+apiVersion: openidgroup.keycloak.m.crossplane.io/v1alpha1
+kind: GroupMembershipProtocolMapper
+metadata:
+  name: artifact-keeper-groups
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    realmId: example
+    clientIdRef: {name: artifact-keeper}
+    name: groups
+    claimName: groups
+    fullPath: false
+    addToIdToken: true
+    addToAccessToken: true
+    addToUserinfo: true
+    addToTokenIntrospection: true

@@ -1,0 +1,20 @@
+# The team's Argo CD (its controller syncs, its server shows resources, logs
+# and runs actions) may manage most resources here: ClusterRole
+# team-deployer (base/team-policies). The team's members may look (kubectl
+# through Keycloak; no Secrets). The team is filled in by the ApplicationSet.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-deployer
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: team-deployer}
+subjects:
+  - {kind: ServiceAccount, namespace: team-placeholder, name: argocd-application-controller}
+  - {kind: ServiceAccount, namespace: team-placeholder, name: argocd-server}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-view
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: view}
+subjects:
+  - {apiGroup: rbac.authorization.k8s.io, kind: Group, name: oidc:team-placeholder}

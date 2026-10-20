@@ -1,0 +1,81 @@
+# oauth2-proxy in front of the Tekton Dashboard: Keycloak login (OIDC, PKCE),
+# members of k8s-admins only; everyone else is refused. The Dashboard itself
+# is only reachable inside the cluster (its Service has no route).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tekton-dashboard
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: tekton-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: oauth2-proxy}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: oauth2-proxy}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+          args:
+            - --http-address=0.0.0.0:4180
+            - --provider=keycloak-oidc
+            - --oidc-issuer-url=https://oauth.example.org/realms/example
+            - --provider-ca-file=/etc/site-ca/site-root-ca.crt
+            - --client-id=tekton-lab
+            # No "groups" scope in this realm: the client's mapper puts the
+            # groups claim in the tokens anyway (asking for it is refused).
+            - --scope=openid email profile
+            - --code-challenge-method=S256
+            - --redirect-url=https://tekton.apps.lab.example.org/oauth2/callback
+            - --allowed-group=k8s-admins
+            - --email-domain=*
+            - --upstream=http://tekton-dashboard.tekton-pipelines.svc.cluster.local:9097
+            - --reverse-proxy=true
+            - --cookie-secure=true
+            - --skip-provider-button=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              # Published by Crossplane from Keycloak (keycloak-client.yaml).
+              valueFrom: {secretKeyRef: {name: tekton-lab-oidc, key: clientSecret}}
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom: {secretKeyRef: {name: oauth2-proxy, key: cookie-secret}}
+          ports:
+            - {name: http, containerPort: 4180}
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+          livenessProbe:
+            httpGet: {path: /ping, port: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          volumeMounts:
+            - {name: site-ca, mountPath: /etc/site-ca, readOnly: true}
+      volumes:
+        - name: site-ca
+          configMap: {name: site-root-ca}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: tekton-dashboard
+spec:
+  selector: {app.kubernetes.io/name: oauth2-proxy}
+  ports:
+    - {name: http, port: 80, targetPort: http}

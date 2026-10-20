@@ -1,0 +1,9 @@
+# organization.yaml, plus the directory name (organization) from the ApplicationSet.
+organization: ""
+forgejo:
+  fullName: ""
+  description: ""
+  visibility: limited      # public, limited (signed-in users) or private
+keycloak:
+  realm: ""                # the Keycloak realm of the organization's users (its teams' groups, Argo CD logins)
+owners: []                 # Forgejo user names, added to the team Owners (OrganizationOwner: found by name)

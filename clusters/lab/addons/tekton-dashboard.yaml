@@ -1,0 +1,21 @@
+# The Tekton Dashboard (read-only) behind oauth2-proxy: clusters/lab/tekton/dashboard.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tekton-dashboard
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: platform-infra
+  source:
+    repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+    targetRevision: main
+    path: clusters/lab/tekton/dashboard
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tekton-dashboard
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [ServerSideApply=true, SkipDryRunOnMissingResource=true]
+    retry: {limit: 10, backoff: {duration: 10s, factor: 2, maxDuration: 3m}}

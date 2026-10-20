@@ -1,0 +1,27 @@
+{{- with .Values.harbor }}
+# The pipelines' Harbor robot account (robot${{ .project }}+{{ .robot }}): push
+# and pull in project {{ .project }} only (the project: registries/harbor). Its
+# secret is the password of Secret registry-push, which also gives the
+# pipelines its name (made by tools/ci.py; Harbor wants upper and lower case
+# and a digit). Deleting it revokes it.
+apiVersion: robot.harbor.m.crossplane.io/v1alpha1
+kind: Account
+metadata:
+  name: harbor-ci
+  namespace: {{ $.Values.namespace }}
+spec:
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  writeConnectionSecretToRef: {name: harbor-push}
+  forProvider:
+    secretSecretRef: {name: registry-push, key: password}
+    name: {{ .robot }}
+    description: CI of {{ $.Values.name }} (Tekton), pushes to project {{ .project }}
+    level: project
+    duration: -1
+    permissions:
+      - kind: project
+        namespace: {{ .project }}
+        access:
+          - {action: push, resource: repository}
+          - {action: pull, resource: repository}
+{{- end }}

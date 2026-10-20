@@ -1,0 +1,42 @@
+# Sample: matrix generator. Every combination of a cluster (cluster
+# generator, env=lab) and a workload (git directory generator): N clusters x
+# M directories Applications, each named after both.
+# Rendered by the merge-request checks only: no Application syncs samples/.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: sample-matrix
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - clusters:
+              selector:
+                matchLabels: {env: lab}
+          - git:
+              repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+              revision: main
+              directories:
+                - path: samples/apps/*
+  template:
+    metadata:
+      name: 'sample-{{ .name }}-{{ .path.basename }}'
+      labels: {sample: matrix, cluster: '{{ .name }}'}
+    spec:
+      project: default
+      source:
+        repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+        targetRevision: main
+        path: '{{ .path.path }}'
+        kustomize:
+          labelWithoutSelector: true   # the label doesn't enter the selectors
+          commonLabels:
+            samples.example.org/cluster: '{{ .name }}'
+      destination:
+        server: '{{ .server }}'
+        namespace: 'sample-matrix-{{ .path.basename }}'
+      syncPolicy:
+        syncOptions: [CreateNamespace=true]

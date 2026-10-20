@@ -1,0 +1,12 @@
+# Tekton Dashboard release, shared by the clusters: read-only (it shows
+# PipelineRuns, TaskRuns and their logs; it changes nothing). It has no login
+# of its own: each cluster's overlay puts it behind oauth2-proxy. The release
+# is kept in Git unchanged:
+#   release.yaml: https://github.com/tektoncd/dashboard/releases/download/v0.73.0/release.yaml
+#   sha256 c14c412a3efcb0b56206ee00c6c862b150673b9552157d31231b720e95736aef
+#   (the digest GitHub lists for the release asset)
+# To upgrade: docs/how-to/upgrade-tekton.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - release.yaml

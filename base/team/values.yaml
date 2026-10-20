@@ -1,0 +1,55 @@
+# Set by the ApplicationSet from applications/<org>/<team>/team.yaml (and the
+# directory names) and applications/<org>/organization.yaml (realm).
+team: ""            # the team's directory name: a DNS label
+description: ""
+members: []         # Keycloak user names (= Forgejo user names)
+repositories: []    # repositories besides <team>-gitops, each "<team>-..."
+organization: ""    # the Forgejo organization (the parent directory)
+realm: ""           # its Keycloak realm (organization.yaml: keycloak.realm)
+# Set by the ApplicationSet: which part of the team this release renders.
+# Each team has three Applications of this chart (addons/teams.yaml): core
+# (team-<team>: namespace, limits, Keycloak group and its Argo CD's client,
+# Forgejo team and repositories, the root Application), ci (team-<team>-ci:
+# namespace ci-<team>, the CI user, Pipelines-as-Code, the Tekton Dashboard)
+# and packages (team-<team>-packages: Harbor project and robot, Artifact
+# Keeper repositories and token). values.schema.json validates every value.
+component: ""
+# Set per cluster by the ApplicationSet.
+cluster: ""         # e.g. lab: client argocd-<cluster>-team-<team>
+appsDomain: ""      # e.g. apps.lab.example.org: argocd-<team>.<appsDomain>
+repoBase: ssh://git@forgejo.example.org:2222   # how Argo CD clones from Forgejo
+forgejoURL: https://forgejo.example.org        # its web and API address (CI)
+keycloakURL: https://oauth.example.org         # the teams' Tekton Dashboards log in there
+# Platform limits on the team namespace (its Argo CD and what the team adds there).
+quota:
+  requests.cpu: "2"
+  requests.memory: 4Gi
+  limits.memory: 8Gi
+  pods: "30"
+# The team's Harbor project (base/team/templates/harbor.yaml).
+harbor:
+  storageQuotaGB: 20
+# The team's CI namespace ci-<team> (base/team/templates/ci.yaml).
+ci:
+  quota:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.memory: 8Gi
+    pods: "10"
+# The team's Tekton Dashboard (templates/dashboard.yaml): the release of
+# base/tekton/dashboard (same version and image), and oauth2-proxy as in
+# clusters/<cluster>/tekton/dashboard.
+tektonDashboard:
+  version: v0.73.0
+  image: ghcr.io/tektoncd/dashboard/dashboard-9623576a202fe86c8b7d1bc489905f86:v0.73.0@sha256:04748532b0095e8f5ccc31ce64d1f17730d36a47e4fd75913d51b40ee6e93936
+  oauth2ProxyImage: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+# The team's Artifact Keeper repositories (templates/artifacts.yaml): one
+# hosted repository per format (<team>-<format>), and for formats with a
+# shared cache (clusters/<cluster>/artifacts/repositories.yaml) a virtual
+# one (<team>-<format>-all: the hosted, then the cache).
+artifactKeeper:
+  formats:
+    - {format: maven, cache: maven-central}
+    - {format: npm, cache: npmjs}
+    - {format: pypi, cache: pypi-org}
+    - {format: generic}

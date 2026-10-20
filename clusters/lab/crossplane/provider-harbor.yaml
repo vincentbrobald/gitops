@@ -1,0 +1,52 @@
+# provider-upjet-harbor (crossplane-contrib, Apache-2.0): Harbor's projects,
+# proxy caches, robot accounts and settings as managed resources. Generated
+# with Upjet from the goharbor Terraform provider, compiled in (no Terraform
+# at runtime). v1.3.1 although under 14 days old: it carries the
+# golang.org/x/net security update (v0.60.0) and the fix for write-only
+# fields (Auth with OIDC failed, issue #95).
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-harbor
+spec:
+  package: ghcr.io/crossplane-contrib/provider-upjet-harbor:v1.3.1
+  runtimeConfigRef:
+    name: provider-harbor
+---
+# Trusts the site CA (Harbor's certificate, from Caddy) besides the public ones.
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-harbor
+spec:
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        spec:
+          containers:
+            - name: package-runtime
+              env:
+                - {name: SSL_CERT_DIR, value: /etc/site-ca}
+              volumeMounts:
+                - {name: site-ca, mountPath: /etc/site-ca, readOnly: true}
+          volumes:
+            - name: site-ca
+              configMap: {name: site-root-ca}
+---
+# Used by every Harbor managed resource that names no other: Harbor's admin
+# user (infra role harbor; the key "password" of the Secret is also what
+# Ansible sets Harbor's admin password from). Harbor is the site's registry,
+# registry.example.org.
+apiVersion: harbor.m.crossplane.io/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  url: https://registry.example.org
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: harbor-credentials
+      key: credentials

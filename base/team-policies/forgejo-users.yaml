@@ -1,0 +1,66 @@
+# Crossplane's Forgejo user (crossplane-lab) is a site admin, only so that it
+# can create the teams' CI users (base/team, ci.yaml). This bounds what that
+# allows, whoever writes the objects: no admin users, only CI users
+# (ci-<name>), tokens with the scopes a CI needs only, and in a team's
+# namespaces (label example.org/team) only that team's user, token and
+# sign-in. The cluster-scoped twins of these kinds are refused: the
+# namespaced ones are the ones used.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: forgejo-users
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [user.forgejo.m.crossplane.brobald.be, user.forgejo.crossplane.brobald.be]
+        apiVersions: ["*"]
+        operations: [CREATE, UPDATE]
+        resources: [users, personalaccesstokens]
+  variables:
+    - name: isUser
+      expression: request.resource.resource == 'users'
+    - name: team
+      expression: >-
+        namespaceObject != null && has(namespaceObject.metadata.labels) &&
+        'example.org/team' in namespaceObject.metadata.labels
+        ? namespaceObject.metadata.labels['example.org/team'] : ''
+    # forProvider and initProvider (Upjet merges both into what it sends).
+    - name: login
+      expression: >-
+        variables.isUser ? object.spec.?forProvider.?login.orValue(object.spec.?initProvider.?login.orValue(''))
+        : object.spec.?forProvider.?user.orValue(object.spec.?initProvider.?user.orValue(''))
+    - name: scopes
+      expression: >-
+        object.spec.?forProvider.?scopes.orValue([]) + object.spec.?initProvider.?scopes.orValue([])
+  validations:
+    - expression: request.resource.group == 'user.forgejo.m.crossplane.brobald.be'
+      message: use the namespaced kinds (user.forgejo.m.crossplane.brobald.be)
+    - expression: >-
+        !variables.isUser || (!object.spec.?forProvider.?admin.orValue(false) &&
+        !object.spec.?initProvider.?admin.orValue(false))
+      message: Forgejo users made through Crossplane are never site admins
+    - expression: variables.login.matches('^ci-[a-z0-9]([a-z0-9-]*[a-z0-9])?$')
+      message: Crossplane makes CI users only, named ci-<name> (a token, for such a user)
+    - expression: >-
+        variables.isUser || variables.scopes.all(s, s in
+        ['read:user', 'read:organization', 'read:repository', 'write:repository',
+        'read:issue', 'write:issue', 'read:package', 'write:package'])
+      message: >-
+        a CI token's scopes are among read:user, read:organization,
+        read:repository, write:repository, read:issue, write:issue,
+        read:package, write:package (no admin, sudo or all)
+    - expression: variables.team == '' || variables.login == 'ci-' + variables.team
+      messageExpression: "'in the namespaces of team ' + variables.team + ', only its CI user ci-' + variables.team"
+    - expression: >-
+        variables.isUser || variables.team == '' ||
+        object.spec.?providerConfigRef.?name.orValue('') == 'ci-' + variables.team
+      messageExpression: "'a token of team ' + variables.team + ' is made through ClusterProviderConfig ci-' + variables.team"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: forgejo-users
+spec:
+  policyName: forgejo-users
+  validationActions: [Deny]

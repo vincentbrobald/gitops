@@ -1,0 +1,15 @@
+# Cluster lab's Tekton Dashboard at https://tekton.apps.lab.example.org:
+# the shared release (namespace tekton-pipelines), and in front of it
+# oauth2-proxy (namespace tekton-dashboard), which logs in with Keycloak
+# (client tekton-lab, managed by Crossplane: keycloak-client.yaml) and admits the group
+# k8s-admins. The gateway listener https-tekton and its certificate come
+# from lab.yaml (certManager.extraHosts).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../base/tekton/dashboard
+  - oauth2-proxy.yaml
+  - routes.yaml
+  - keycloak-client.yaml   # Keycloak client and its groups claim, via Crossplane
+generators:
+  - secret-generator.yaml

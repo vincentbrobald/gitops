@@ -1,0 +1,48 @@
+# The shared pull-through caches of Artifact Keeper (provider-artifact-keeper):
+# public upstream registries, readable anonymously, part of every team's
+# virtual repositories (<team>-<format>-all, base/team). Never deleted by
+# Crossplane (no Delete: they hold the cached packages).
+apiVersion: artifactkeeper.crossplane.brobald.be/v1alpha1
+kind: Repository
+metadata:
+  name: maven-central
+spec:
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: Maven Central
+    description: Cache of Maven Central
+    format: maven
+    type: remote
+    upstreamURL: https://repo.maven.apache.org/maven2
+    public: true
+---
+apiVersion: artifactkeeper.crossplane.brobald.be/v1alpha1
+kind: Repository
+metadata:
+  name: npmjs
+spec:
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: npmjs
+    description: Cache of registry.npmjs.org
+    format: npm
+    type: remote
+    upstreamURL: https://registry.npmjs.org
+    public: true
+---
+apiVersion: artifactkeeper.crossplane.brobald.be/v1alpha1
+kind: Repository
+metadata:
+  name: pypi-org
+spec:
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: PyPI
+    description: Cache of pypi.org
+    format: pypi
+    type: remote
+    upstreamURL: https://pypi.org
+    public: true

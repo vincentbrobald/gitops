@@ -1,0 +1,46 @@
+# Platform limits: not the team's to change (team-deployer has no access to
+# quotas, limit ranges or network policies). No LoadBalancer or NodePort
+# Services: traffic comes in through the ingress gateway.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: 2Gi
+    limits.memory: 4Gi
+    pods: "20"
+    persistentvolumeclaims: "5"
+    requests.storage: 20Gi
+    services.loadbalancers: "0"
+    services.nodeports: "0"
+---
+# Defaults for containers that set no resources (the quota requires them).
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: platform
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 50m, memory: 128Mi}
+      default: {memory: 512Mi}
+---
+# Incoming traffic: from the namespace itself, from the ingress gateway
+# (Cilium's "ingress" identity) and from Prometheus. Other namespaces,
+# including the team's other environments, can't connect. Outgoing traffic
+# is not restricted.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: platform
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - {}
+    - fromEntities: [ingress]
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring

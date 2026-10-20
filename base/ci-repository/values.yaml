@@ -1,0 +1,24 @@
+# Set by the ApplicationSet from clusters/<cluster>/ci/<name>/repository.yaml
+# (and the folder's name).
+name: ""                 # the folder's name
+repository: ""           # <owner>/<repo> on Forgejo
+namespace: ""            # where its pipelines run
+forgejoURL: https://forgejo.example.org
+tektonDashboard: ""      # host of the Tekton Dashboard its status links go to (set per cluster)
+# Pipelines-as-Code Repository settings (spec.settings), e.g.
+# {pipelinerun_provenance: default_branch}.
+pipelinesAsCode:
+  settings: {}
+# Forgejo settings managed by Crossplane (provider-forgejo); {} when Ansible
+# keeps them (infra forgejo.yml). External names (<repository ID>/<id>) of
+# objects that already exist: Crossplane finds them instead of creating.
+forgejo: {}
+#  repositoryId: 10
+#  collaborator: {externalName: "10/pac-bot"}           # pac-bot, write
+#  webhook: {externalName: "10/6"}                       # to Pipelines-as-Code
+#  deployKeys: [{name: push, title: push, readOnly: false, key: "ssh-ed25519 ...", externalName: "10/3"}]
+# Its Harbor robot account (Crossplane, provider-harbor): pushes to project.
+# {} for none. Its password is registry-push's (tools/ci.py).
+harbor: {}
+#  project: providers
+#  robot: provider-forgejo-ci        # robot$<project>+<robot>

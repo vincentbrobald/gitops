@@ -1,0 +1,13 @@
+# The platform's setup of one environment namespace of a team (README,
+# Applications): included by applications/<org>/<team>/<namespace>/kustomization.yaml
+# (the namespace's base). The ApplicationSet team-namespaces builds that base
+# with the environment's component (<env>/, the overlay), sets the namespace
+# <env>-<team>-<namespace> and fills in the team (Namespace labels,
+# RoleBinding subjects). Quota: small; sizes/medium or sizes/large from an
+# overlay change it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - limits.yaml
+  - rbac.yaml

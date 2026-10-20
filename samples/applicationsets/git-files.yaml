@@ -1,0 +1,42 @@
+# Sample: git files generator. One Helm release per file under
+# samples/helm-releases/; the file's keys (chart, version, values) are the
+# template's parameters.
+# Rendered by the merge-request checks only: no Application syncs samples/.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: sample-git-files
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+        revision: main
+        files:
+          - path: samples/helm-releases/*.yaml
+  template:
+    metadata:
+      name: 'sample-{{ .name }}'
+      labels: {sample: git-files}
+    spec:
+      project: default
+      source:
+        repoURL: '{{ .chart.repoURL }}'
+        chart: '{{ .chart.name }}'
+        targetRevision: '{{ .chart.version }}'
+        helm:
+          releaseName: '{{ .name }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'sample-{{ .name }}'
+      syncPolicy:
+        syncOptions: [CreateNamespace=true]
+  # The values map goes in whole, as an object (a template field is a string).
+  templatePatch: |
+    spec:
+      source:
+        helm:
+          valuesObject:
+            {{- toYaml .values | nindent 8 }}

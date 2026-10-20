@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whoami
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: whoami
+          image: registry.k8s.io/e2e-test-images/agnhost:2.53
+          args: ["porter"]
+          env:
+            - {name: SERVE_PORT_8080, value: "whoami sample"}
+          ports: [{containerPort: 8080}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}

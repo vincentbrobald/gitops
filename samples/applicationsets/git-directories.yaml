@@ -1,0 +1,33 @@
+# Sample: git directory generator. One Application per directory under
+# samples/apps/: adding a directory adds an Application, without touching
+# this file.
+# Rendered by the merge-request checks only: no Application syncs samples/.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: sample-git-directories
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+        revision: main
+        directories:
+          - path: samples/apps/*
+  template:
+    metadata:
+      name: 'sample-dir-{{ .path.basename }}'
+      labels: {sample: git-directories}
+    spec:
+      project: default
+      source:
+        repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+        targetRevision: main
+        path: '{{ .path.path }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'sample-dir-{{ .path.basename }}'
+      syncPolicy:
+        syncOptions: [CreateNamespace=true]

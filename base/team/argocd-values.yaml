@@ -1,0 +1,79 @@
+# Values of every team's Argo CD (argo-cd chart, the clusters' version),
+# applied by the ApplicationSet team-argocd; the per-team values (host name,
+# Keycloak client, RBAC) are in that ApplicationSet.
+#
+# Namespace-scoped: no cluster roles, no CRDs (the platform's Argo CD has
+# them). It reads its Applications in its own namespace team-<team> only and
+# deploys where the platform lets it: the "in-cluster" destination limited
+# to the namespaces listed in applications/<org>/<team>/argocd/argocd-namespaces.yaml (generated
+# by tools/teams.py: team-<team> for its own Applications, then the team's
+# application namespaces), where the platform bound ClusterRole
+# team-deployer. Login through Keycloak only (no admin user).
+crds:
+  install: false
+createClusterRoles: false
+createAggregateRoles: false
+dex:
+  enabled: false
+notifications:
+  enabled: false
+configs:
+  params:
+    server.insecure: true
+  cm:
+    admin.enabled: false
+    # Only the kinds it may list are cached and shown (team-deployer is an
+    # allow-list); the others are skipped instead of failing the cache.
+    resource.respectRBAC: normal
+  rbac:
+    policy.default: ""
+    scopes: "[groups]"
+  # Forgejo's SSH host key (the team's repositories are cloned over SSH);
+  # tools/teams.py checks it is the platform Argo CD's (clusters/<cluster>/addons/argocd.yaml).
+  ssh:
+    extraHosts: |
+      [forgejo.example.org]:2222 ssh-rsa AAAA-replace-with-the-public-key
+server:
+  # The site's CA (ConfigMap site-root-ca of team-<team>, trust-manager): the
+  # server trusts Keycloak's certificate for the OIDC login with it, besides
+  # the system's (Go adds SSL_CERT_DIR to its bundle).
+  env:
+    - {name: SSL_CERT_DIR, value: /etc/site-ca}
+  volumes:
+    - name: site-ca
+      configMap: {name: site-root-ca}
+  volumeMounts:
+    - {name: site-ca, mountPath: /etc/site-ca, readOnly: true}
+  # TLS ends at the ingress gateway, on a listener of the team's own
+  # (ListenerSet: the namespace may add listeners) with a certificate from
+  # the site's ACME CA.
+  certificate:
+    enabled: true
+    issuer: {kind: ClusterIssuer, name: acme}
+    privateKey: {rotationPolicy: Always, algorithm: ECDSA, size: 256}
+  listenerset:
+    enabled: true
+    parentRef: {name: ingress, namespace: ingress}
+    tls:
+      secretName: argocd-server-tls
+  httproute:
+    enabled: true
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 512Mi}
+controller:
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 1Gi}
+repoServer:
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 1Gi}
+applicationSet:
+  resources:
+    requests: {cpu: 20m, memory: 64Mi}
+    limits: {memory: 256Mi}
+redis:
+  resources:
+    requests: {cpu: 20m, memory: 64Mi}
+    limits: {memory: 256Mi}

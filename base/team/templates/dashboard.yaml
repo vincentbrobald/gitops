@@ -1,0 +1,302 @@
+{{- if eq .Values.component "ci" }}
+# The team's Tekton Dashboard: its CI runs (namespace ci-{{ .Values.team }}: PipelineRuns,
+# TaskRuns, logs), read-only, at https://{{ include "team.tektonHost" . }}, the
+# links of its commit statuses (Pipelines-as-Code, ci.yaml: Repository param
+# tekton_dashboard). The Dashboard (the release of base/tekton/dashboard, in
+# tenant mode: --namespaces) may read ci-{{ .Values.team }} only; oauth2-proxy in front of
+# it lets in the team's Keycloak group team-{{ .Values.team }} only (its own client,
+# made by Crossplane), and only oauth2-proxy reaches the Dashboard.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tekton-dashboard
+  namespace: {{ include "team.ns" . }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-info
+  namespace: {{ include "team.ns" . }}
+data:
+  version: {{ .Values.tektonDashboard.version }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tekton-dashboard-info
+  namespace: {{ include "team.ns" . }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [dashboard-info]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tekton-dashboard-info
+  namespace: {{ include "team.ns" . }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: tekton-dashboard-info}
+subjects:
+  - {kind: ServiceAccount, name: tekton-dashboard, namespace: {{ include "team.ns" . }}}
+---
+# What it shows, in ci-{{ .Values.team }} only: Tekton's runs (tekton-aggregate-view) and
+# their pods, logs and events (the release's tekton-dashboard-tenant-view).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tekton-dashboard-{{ .Values.team }}-runs
+  namespace: ci-{{ .Values.team }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: tekton-aggregate-view}
+subjects:
+  - {kind: ServiceAccount, name: tekton-dashboard, namespace: {{ include "team.ns" . }}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tekton-dashboard-{{ .Values.team }}-pods
+  namespace: ci-{{ .Values.team }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: tekton-dashboard-tenant-view}
+subjects:
+  - {kind: ServiceAccount, name: tekton-dashboard, namespace: {{ include "team.ns" . }}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tekton-dashboard
+  namespace: {{ include "team.ns" . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: tekton-dashboard}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: tekton-dashboard}
+    spec:
+      serviceAccountName: tekton-dashboard
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: tekton-dashboard
+          image: {{ .Values.tektonDashboard.image }}
+          args:
+            - --port=9097
+            - --read-only=true
+            - --namespaces=ci-{{ .Values.team }}
+            - --default-namespace=ci-{{ .Values.team }}
+            - --pipelines-namespace=tekton-pipelines
+            - --triggers-namespace=tekton-pipelines
+            - --stream-logs=true
+            - --log-format=json
+            - --log-level=info
+          env:
+            - name: INSTALLED_NAMESPACE
+              valueFrom: {fieldRef: {fieldPath: metadata.namespace}}
+          ports:
+            - {name: http, containerPort: 9097}
+          readinessProbe:
+            httpGet: {path: /readiness, port: http}
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tekton-dashboard
+  namespace: {{ include "team.ns" . }}
+spec:
+  selector: {app.kubernetes.io/name: tekton-dashboard}
+  ports:
+    - {name: http, port: 9097, targetPort: http}
+---
+# The Dashboard has no login of its own: only oauth2-proxy may connect.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: tekton-dashboard
+  namespace: {{ include "team.ns" . }}
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/name: tekton-dashboard}
+  ingress:
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/name: tekton-dashboard-oauth2-proxy}
+      toPorts:
+        - ports: [{port: "9097", protocol: TCP}]
+---
+# oauth2-proxy: Keycloak login (client {{ include "team.tektonClient" . }}, PKCE), group
+# team-{{ .Values.team }} only. Client secret from Crossplane (Secret tekton-dashboard-oidc),
+# cookie secret generated (applications/<org>/{{ .Values.team }}/argocd/, Secret
+# tekton-dashboard-oauth2-proxy).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tekton-dashboard-oauth2-proxy
+  namespace: {{ include "team.ns" . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: tekton-dashboard-oauth2-proxy}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: tekton-dashboard-oauth2-proxy}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: oauth2-proxy
+          image: {{ .Values.tektonDashboard.oauth2ProxyImage }}
+          args:
+            - --http-address=0.0.0.0:4180
+            - --provider=keycloak-oidc
+            - --oidc-issuer-url={{ .Values.keycloakURL }}/realms/{{ .Values.realm }}
+            - --provider-ca-file=/etc/site-ca/site-root-ca.crt
+            - --client-id={{ include "team.tektonClient" . }}
+            # The client's mapper puts the groups claim in the tokens (a
+            # "groups" scope doesn't exist in the realm).
+            - --scope=openid email profile
+            - --code-challenge-method=S256
+            - --redirect-url=https://{{ include "team.tektonHost" . }}/oauth2/callback
+            - --allowed-group=team-{{ .Values.team }}
+            - --email-domain=*
+            - --upstream=http://tekton-dashboard.{{ include "team.ns" . }}.svc.cluster.local:9097
+            - --reverse-proxy=true
+            - --cookie-secure=true
+            - --cookie-name=_oauth2_proxy_tekton_{{ .Values.team | replace "-" "_" }}
+            - --skip-provider-button=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: tekton-dashboard-oidc, key: clientSecret}}
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom: {secretKeyRef: {name: tekton-dashboard-oauth2-proxy, key: cookie-secret}}
+          ports:
+            - {name: http, containerPort: 4180}
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+          livenessProbe:
+            httpGet: {path: /ping, port: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          volumeMounts:
+            - {name: site-ca, mountPath: /etc/site-ca, readOnly: true}
+      volumes:
+        - name: site-ca
+          configMap: {name: site-root-ca}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tekton-dashboard-oauth2-proxy
+  namespace: {{ include "team.ns" . }}
+spec:
+  selector: {app.kubernetes.io/name: tekton-dashboard-oauth2-proxy}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+---
+# Its host name on a listener of its own (policy team-listeners: "tekton-<team>.").
+apiVersion: gateway.networking.k8s.io/v1
+kind: ListenerSet
+metadata:
+  name: tekton-dashboard
+  namespace: {{ include "team.ns" . }}
+spec:
+  parentRef: {name: ingress, namespace: ingress}
+  listeners:
+    - name: tekton
+      port: 443
+      protocol: HTTPS
+      hostname: {{ include "team.tektonHost" . }}
+      tls:
+        mode: Terminate
+        certificateRefs: [{name: tekton-dashboard-tls}]
+      allowedRoutes: {namespaces: {from: Same}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tekton-dashboard-tls
+  namespace: {{ include "team.ns" . }}
+spec:
+  secretName: tekton-dashboard-tls
+  dnsNames: [{{ include "team.tektonHost" . }}]
+  issuerRef: {kind: ClusterIssuer, name: acme}
+  privateKey: {rotationPolicy: Always, algorithm: ECDSA, size: 256}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tekton-dashboard
+  namespace: {{ include "team.ns" . }}
+spec:
+  parentRefs:
+    - {group: gateway.networking.k8s.io, kind: ListenerSet, name: tekton-dashboard, sectionName: tekton}
+  rules:
+    - backendRefs:
+        - {name: tekton-dashboard-oauth2-proxy, port: 80}
+---
+# oauth2-proxy's Keycloak client (confidential: Crossplane publishes its
+# secret in Secret tekton-dashboard-oidc) and the flat "groups" claim.
+# LateInitialize: Keycloak assigns the client's ID (see keycloak.yaml).
+apiVersion: openidclient.keycloak.m.crossplane.io/v1alpha2
+kind: Client
+metadata:
+  name: {{ include "team.tektonClient" . }}
+  namespace: {{ include "team.ns" . }}
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  {{- include "team.crossplane" . | nindent 2 }}
+  writeConnectionSecretToRef: {name: tekton-dashboard-oidc}
+  forProvider:
+    realmId: {{ .Values.realm }}
+    clientId: {{ include "team.tektonClient" . }}
+    name: Tekton Dashboard of team {{ .Values.team }} ({{ .Values.cluster }})
+    enabled: true
+    accessType: CONFIDENTIAL
+    standardFlowEnabled: true
+    implicitFlowEnabled: false
+    directAccessGrantsEnabled: false
+    serviceAccountsEnabled: false
+    validRedirectUris: ["https://{{ include "team.tektonHost" . }}/oauth2/callback"]
+    webOrigins: ["https://{{ include "team.tektonHost" . }}"]
+    validPostLogoutRedirectUris: ["https://{{ include "team.tektonHost" . }}"]
+    frontchannelLogoutEnabled: false
+    fullScopeAllowed: true
+    consentRequired: false
+    useRefreshTokens: true
+---
+apiVersion: openidgroup.keycloak.m.crossplane.io/v1alpha1
+kind: GroupMembershipProtocolMapper
+metadata:
+  name: {{ include "team.tektonClient" . }}-groups
+  namespace: {{ include "team.ns" . }}
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  {{- include "team.crossplane" . | nindent 2 }}
+  forProvider:
+    realmId: {{ .Values.realm }}
+    clientIdRef: {name: {{ include "team.tektonClient" . }}}
+    name: groups
+    claimName: groups
+    fullPath: false
+    addToIdToken: true
+    addToAccessToken: true
+    addToUserinfo: true
+    addToTokenIntrospection: true
+{{- end }}

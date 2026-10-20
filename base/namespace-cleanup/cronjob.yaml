@@ -1,0 +1,45 @@
+# Every 5 minutes; a run takes seconds. A namespace goes at the earliest
+# GRACE_SECONDS after its last owner, and only once Crossplane is done in it.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: namespace-cleanup
+  namespace: namespace-cleanup
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 240
+      template:
+        spec:
+          serviceAccountName: namespace-cleanup
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: cleanup
+              image: docker.io/library/python:3.14-slim
+              command: [python3, -I, /cleanup/cleanup.py]
+              env:
+                - {name: ARGOCD_NAMESPACE, value: argocd}
+                - {name: GRACE_SECONDS, value: "600"}
+                - {name: DRY_RUN, value: "false"}
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {memory: 128Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: [ALL]}
+              volumeMounts:
+                - {name: script, mountPath: /cleanup, readOnly: true}
+          volumes:
+            - name: script
+              configMap: {name: namespace-cleanup}

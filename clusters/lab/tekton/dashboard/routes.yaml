@@ -1,0 +1,28 @@
+# https://tekton.apps.lab.example.org to oauth2-proxy (listener https-tekton
+# of the ingress gateway), and http:// redirected to https.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tekton-dashboard
+  namespace: tekton-dashboard
+spec:
+  parentRefs:
+    - {name: ingress, namespace: ingress, sectionName: https-tekton}
+  hostnames: [tekton.apps.lab.example.org]
+  rules:
+    - backendRefs:
+        - {name: oauth2-proxy, port: 80}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tekton-dashboard-redirect
+  namespace: tekton-dashboard
+spec:
+  parentRefs:
+    - {name: ingress, namespace: ingress, sectionName: http}
+  hostnames: [tekton.apps.lab.example.org]
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect: {scheme: https, statusCode: 301}

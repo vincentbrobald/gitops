@@ -1,0 +1,22 @@
+# Name and labels are set by the ApplicationSet team-namespaces. The labels
+# are what policies match on (example.org/team: every namespace of a team,
+# its own team-<team> included); gateway.example.org/listeners lets the
+# namespace add HTTPS listeners (ListenerSet) for its host names.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: placeholder
+  labels:
+    example.org/org: placeholder
+    example.org/team: placeholder
+    example.org/app: placeholder
+    example.org/env: placeholder
+    gateway.example.org/listeners: ingress
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    # base/namespace-cleanup deletes the namespace if Argo CD couldn't (its
+    # environment's folder and its tenants entry removed in one change): its
+    # owner is the Application labelled example.org/namespace=<this name>
+    # (annotation added by addons/teams.yaml).
+    cleanup.example.org/when-orphaned: "true"
+  annotations: {}

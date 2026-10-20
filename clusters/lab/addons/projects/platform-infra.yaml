@@ -1,0 +1,29 @@
+# What the cluster runs on: CRDs, cluster-wide RBAC, admission webhooks and
+# policies (Cilium, cert-manager, Crossplane, Gateway API, Longhorn, tuppr,
+# Argo CD, Tekton, Pipelines-as-Code, the teams' admission policies), and the
+# app-of-apps itself. Any namespace, any kind; sources limited to this
+# repository and the charts' repositories (a new chart repository is added
+# here). docs/reference/projects.md.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-infra
+  namespace: argocd
+spec:
+  description: Cluster infrastructure (cluster-scoped objects allowed)
+  sourceRepos:
+    - ssh://git@forgejo.example.org:2222/alice/gitops.git
+    - https://argoproj.github.io/argo-helm
+    - https://charts.jetstack.io
+    - https://helm.cilium.io
+    - https://charts.crossplane.io/stable
+    - https://charts.longhorn.io
+    - https://kubernetes-sigs.github.io/metrics-server/
+    - https://prometheus-community.github.io/helm-charts
+    - ghcr.io/home-operations/charts
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: '*'
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'

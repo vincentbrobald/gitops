@@ -1,0 +1,15 @@
+# ConfigMap site-root-ca (key site-root-ca.crt) in every namespace:
+# what workloads mount to call the site's services over HTTPS (registry,
+# Forgejo, Keycloak). trust-manager rewrites it when the source changes.
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: site-root-ca
+spec:
+  sources:
+    - configMap: {name: site-root-ca-source, key: site-root-ca.crt}
+  target:
+    configMap: {key: site-root-ca.crt}
+    # No namespaceSelector: every namespace, new ones included (the CA is
+    # public). Nothing else may write a ConfigMap site-root-ca: trust-manager
+    # and Argo CD would rewrite each other's (docs/explanation/site-ca.md).

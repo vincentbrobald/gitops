@@ -1,0 +1,41 @@
+# Host names of the listeners in a team's namespaces (label
+# example.org/team): "<team>-..." (an environment's ListenerSet, from
+# applications/<org>/<team>/<ns>/<env>/), the team's Argo CD
+# "argocd-<team>." or its Tekton Dashboard "tekton-<team>." (base/team). ListenerSets come from the platform's Argo CD only (not in
+# team-deployer); this keeps a reviewed file from claiming another team's or
+# the platform's host name. tools/teams.py checks the same before the merge,
+# and that host names are unique.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: team-listeners
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - {key: example.org/team, operator: Exists}
+    resourceRules:
+      - apiGroups: [gateway.networking.k8s.io]
+        apiVersions: ["*"]
+        operations: [CREATE, UPDATE]
+        resources: [listenersets]
+  variables:
+    - name: team
+      expression: namespaceObject.metadata.labels['example.org/team']
+  validations:
+    - expression: >-
+        object.spec.listeners.all(l, has(l.hostname) &&
+        (l.hostname.startsWith(variables.team + '-') || l.hostname.startsWith('argocd-' + variables.team + '.') ||
+        l.hostname.startsWith('tekton-' + variables.team + '.')))
+      messageExpression: >-
+        'listeners in team ' + variables.team + "'s namespaces serve host names starting with '" +
+        variables.team + "-'"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: team-listeners
+spec:
+  policyName: team-listeners
+  validationActions: [Deny]

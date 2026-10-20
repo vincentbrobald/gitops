@@ -1,0 +1,25 @@
+# Crossplane's providers and their settings (clusters/lab/crossplane), after
+# Crossplane itself (Application crossplane).
+# Hand-written: deploy-talos.py leaves this file alone.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: crossplane-providers
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: platform-infra
+  source:
+    repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+    targetRevision: main
+    path: clusters/lab/crossplane
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: crossplane-system
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [ServerSideApply=true, SkipDryRunOnMissingResource=true]
+    # A provider's kinds (e.g. ClusterProviderConfig) exist once Crossplane
+    # has installed it: the first syncs retry until then.
+    retry: {limit: 10, backoff: {duration: 10s, factor: 2, maxDuration: 3m}}

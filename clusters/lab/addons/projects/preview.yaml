@@ -1,0 +1,16 @@
+# The render-only Argo CD of the merge checks (argocd-preview): its own
+# namespace only, nothing cluster-wide (it is installed namespaced and
+# shares the CRDs of the platform's Argo CD). docs/reference/projects.md.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: preview
+  namespace: argocd
+spec:
+  description: The merge checks' render-only Argo CD
+  sourceRepos:
+    - ssh://git@forgejo.example.org:2222/alice/gitops.git
+    - https://argoproj.github.io/argo-helm
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd-preview

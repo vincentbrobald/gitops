@@ -1,0 +1,52 @@
+# What a team's Argo CD may manage in each of its application namespaces
+# (bound there by base/team-namespace). An allow-list: a kind not listed is
+# out of reach, in particular the platform's own objects:
+# - ResourceQuota, LimitRange, NetworkPolicy, CiliumNetworkPolicy (the
+#   platform's limits; network policies only ever add allowed traffic);
+# - Gateway, ListenerSet (host names come from the environment overlays);
+# - Crossplane's kinds (they act with the platform's credentials: Keycloak
+#   users, Forgejo organization);
+# - Namespace and anything cluster-scoped.
+# Roles and RoleBindings are allowed: Kubernetes refuses to grant more than
+# the granter holds, so they stay within this list and this namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: team-deployer
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, secrets, services, serviceaccounts, persistentvolumeclaims]
+    verbs: [get, list, watch, create, update, patch, delete, deletecollection]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch, delete, deletecollection]
+  - apiGroups: [""]
+    resources: [pods/log, events, endpoints]
+    verbs: [get, list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, daemonsets, replicasets, controllerrevisions]
+    verbs: [get, list, watch, create, update, patch, delete, deletecollection]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch, create, update, patch, delete, deletecollection]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch, create, update, patch, delete, deletecollection]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, create, update, patch, delete, deletecollection]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch, delete, deletecollection]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes, grpcroutes]
+    verbs: [get, list, watch, create, update, patch, delete, deletecollection]
+  - apiGroups: [cert-manager.io]
+    resources: [certificates]
+    verbs: [get, list, watch]
+  - apiGroups: [monitoring.coreos.com]
+    resources: [servicemonitors, podmonitors, prometheusrules]
+    verbs: [get, list, watch, create, update, patch, delete, deletecollection]

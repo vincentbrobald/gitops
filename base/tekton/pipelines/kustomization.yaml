@@ -1,0 +1,12 @@
+# Tekton Pipelines release, shared by the clusters (their overlay:
+# clusters/<name>/tekton/pipelines), kept in Git unchanged: rendering needs
+# no download, and the file is the one upstream published.
+#   release.yaml: https://github.com/tektoncd/pipeline/releases/download/v1.17.0/release.yaml
+#   sha256 93ee4eda6978be24e7c04e410b059008099f059e8eea078d560d9f69944ff349
+#   (the digest GitHub lists for the release asset)
+# To upgrade: docs/how-to/upgrade-tekton.md. The webhook's HPA (1-5 replicas)
+# scales on the metrics API, which metrics-server serves.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - release.yaml

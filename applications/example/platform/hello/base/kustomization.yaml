@@ -1,0 +1,8 @@
+# Base of the namespaces of the platform team's application "hello": the
+# platform's namespace setup, shared by every environment (env/<env>/, the
+# overlays: env/dev → namespace dev-platform-hello). The application's own
+# manifests live in the team's repositories.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../../base/team-namespace

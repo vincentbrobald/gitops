@@ -1,0 +1,80 @@
+# Entry points of the merge-request checks (Tekton pipeline, gitops-scanner).
+#
+# The scanner starts from each entry point and follows what Argo CD follows:
+# the Applications and ApplicationSets found there, the Applications the sets
+# generate, and their sources (directories, kustomizations, Helm charts),
+# recursively (an Application whose output holds Applications is followed
+# too). Nothing else is explored: an overlay is checked because an
+# Application reaches it, not because it exists.
+#
+# Each entry point is rendered twice, before (the target branch) and after
+# (the pull request, which must be up to date with the target branch), by a
+# render-only Argo CD with the same version as the clusters'. The report lists
+# render errors, schema and policy violations, and the per-resource diff.
+apiVersion: gitops-check.brobald.be/v1alpha1
+kind: CheckConfig
+
+repository:
+  url: ssh://git@forgejo.example.org:2222/alice/gitops.git
+  # Sources (and git generators) pointing at this repository with one of
+  # these revisions are rendered at the revision under test. Any other
+  # revision (a tag, a commit) is rendered as written.
+  trackedRevisions: [main, HEAD]
+
+argocd:
+  # Must match the clusters' Argo CD (chart 10.10.5): the bundled kustomize
+  # and helm decide the output, so another version gives false diffs.
+  version: v3.5.5
+
+# Clusters known to the render-only Argo CD. Destinations and the cluster
+# generator resolve against this list; keep the labels identical to the real
+# cluster Secrets so that cluster generators select the same clusters.
+clusters:
+  - name: lab
+    server: https://kubernetes.default.svc
+    labels:
+      env: lab
+      site: example.org
+    annotations:
+      ingressDomain: apps.lab.example.org
+
+entrypoints:
+  - name: lab
+    cluster: lab
+    # The app-of-apps 'addons', the cluster's only root: it lists itself
+    # (addons/generated/addons.yaml, deploy-talos.py's) and every add-on;
+    # it reads the directory recursively, so does the walk.
+    path: clusters/lab/addons
+    recurse: true
+  - name: samples
+    cluster: lab
+    # Example ApplicationSets, one per generator type. Rendered and checked
+    # like the rest, but no Application syncs this directory: never deployed.
+    path: samples/applicationsets
+    deployed: false
+
+# Directories that hold manifests but that no entry point reaches, on purpose.
+# Any other unreached directory is reported (a forgotten overlay, a typo in
+# an Application's path).
+ignore:
+  - path: .tekton
+    reason: pipelines of this repository, run by Pipelines-as-Code
+  - path: base/team-namespace/sizes
+    reason: quota components for environment overlays (applications/), used when an environment asks for one
+
+# Repositories outside the check: the teams' own (each team's Argo CD root
+# Application syncs <org>/<team>-gitops). They are the teams' domain, and the
+# preview can't read them: listed, not rendered.
+external:
+  - prefix: ssh://git@forgejo.example.org:2222/example/
+    reason: the teams' repositories (organization example)
+
+checks:
+  # Secrets are never decrypted: KSOPS generators render each Secret with its
+  # key names and placeholder values. The diff reports changed keys, and
+  # "values changed" when the encrypted value of a key differs.
+  secrets: redact
+  # A merge is blocked by any error: render failure, Argo CD condition
+  # (ComparisonError, InvalidSpecError), schema violation, failed policy,
+  # unreached directory. Diffs alone never block; they are for the reviewer.
+  blockOn: errors

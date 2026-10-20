@@ -1,0 +1,28 @@
+# Argo CD's own project, left to the app-of-apps 'addons' alone (it creates
+# the other projects, so it can't wait for one): this repository, namespace
+# argocd, Argo CD's objects (Applications, ApplicationSets, AppProjects) and
+# its repository Secrets (e.g. helm-oci-home-operations). Nothing
+# cluster-wide. An Application left without a project lands here and fails:
+# every other Application names its project (docs/reference/projects.md).
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: default
+  namespace: argocd
+spec:
+  description: The app-of-apps only (Argo CD's objects in namespace argocd)
+  sourceRepos:
+    - ssh://git@forgejo.example.org:2222/alice/gitops.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: argoproj.io
+      kind: Application
+    - group: argoproj.io
+      kind: ApplicationSet
+    - group: argoproj.io
+      kind: AppProject
+    - group: ''
+      kind: Secret

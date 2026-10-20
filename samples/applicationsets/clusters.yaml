@@ -1,0 +1,34 @@
+# Sample: cluster generator. One Application per cluster registered in Argo
+# CD whose Secret carries the label env=lab; the cluster's name, server and
+# annotations become parameters (here the ingress domain, for a route host).
+# Rendered by the merge-request checks only: no Application syncs samples/.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: sample-clusters
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels: {env: lab}
+  template:
+    metadata:
+      name: 'sample-whoami-{{ .name }}'
+      labels: {sample: clusters, cluster: '{{ .name }}'}
+    spec:
+      project: default
+      source:
+        repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+        targetRevision: main
+        path: samples/apps/whoami
+        kustomize:
+          commonAnnotations:
+            samples.example.org/url: 'http://whoami.{{ index .metadata.annotations "ingressDomain" }}'
+      destination:
+        server: '{{ .server }}'
+        namespace: sample-whoami
+      syncPolicy:
+        syncOptions: [CreateNamespace=true]

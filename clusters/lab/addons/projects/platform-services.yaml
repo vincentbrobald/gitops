@@ -1,0 +1,39 @@
+# Services of the platform that need nothing cluster-wide but their
+# namespace: the registries' settings (Crossplane), Headlamp, the ingress
+# gateway, Talos backups, the platform's CI repositories (clusters/<cluster>/ci/).
+# Only the namespaces listed: a new service or CI repository adds its own
+# (the merge check reports a missing one). docs/reference/projects.md.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-services
+  namespace: argocd
+spec:
+  description: Namespaced platform services (no cluster-scoped objects but Namespace)
+  sourceRepos:
+    - ssh://git@forgejo.example.org:2222/alice/gitops.git
+    - https://kubernetes-sigs.github.io/headlamp/
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: harbor-config
+    - server: https://kubernetes.default.svc
+      namespace: artifacts-config
+    - server: https://kubernetes.default.svc
+      namespace: headlamp
+    - server: https://kubernetes.default.svc
+      namespace: ingress
+    - server: https://kubernetes.default.svc
+      namespace: talos-backup
+    - server: https://kubernetes.default.svc
+      namespace: gitops-ci
+    - server: https://kubernetes.default.svc
+      namespace: gitops-scanner
+    - server: https://kubernetes.default.svc
+      namespace: pac-demo
+    - server: https://kubernetes.default.svc
+      namespace: provider-forgejo
+    - server: https://kubernetes.default.svc
+      namespace: provider-artifact-keeper
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace

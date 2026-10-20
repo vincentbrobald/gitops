@@ -1,0 +1,23 @@
+{{- if eq .Values.component "core" }}
+# The team's namespace: its delegated tools (its Argo CD). The team may add
+# HTTPS listeners to the ingress gateway from here (ListenerSet: the label
+# gateway.example.org/listeners).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "team.ns" . }}
+  labels:
+    example.org/org: {{ .Values.organization }}
+    example.org/team: {{ .Values.team }}
+    gateway.example.org/listeners: ingress
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    cleanup.example.org/when-orphaned: "true"
+  annotations:
+    example.org/description: {{ .Values.description | quote }}
+    # Removing the team: Argo CD deletes what is in the namespace but not the
+    # namespace, so that Crossplane can still delete its external objects;
+    # base/namespace-cleanup deletes it once they are gone.
+    argocd.argoproj.io/sync-options: Delete=false
+    cleanup.example.org/applications: example.org/team={{ .Values.team }}
+{{- end }}

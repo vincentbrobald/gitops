@@ -1,0 +1,10 @@
+# One Helm release of the git-files sample: every key is a template parameter.
+name: podinfo-small
+chart:
+  repoURL: https://stefanprodan.github.io/podinfo
+  name: podinfo
+  version: 6.15.0
+values:
+  replicaCount: 1
+  ui:
+    message: small podinfo (sample)

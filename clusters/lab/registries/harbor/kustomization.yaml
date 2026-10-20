@@ -1,0 +1,16 @@
+# Harbor (the site's registry, registry.example.org, on the registry VM;
+# infra role harbor):
+# what it holds, through Crossplane (provider-harbor, clusters/lab/crossplane).
+# Application harbor, namespace harbor-config.
+# - keycloak.yaml: its Keycloak client and login settings (OIDC, groups);
+# - registries.yaml: the upstream registries of its proxy caches;
+# - projects.yaml: the proxy-cache projects (<upstream>/<image>) and the
+#   platform's projects.
+# The teams' projects come with the teams (base/team).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: harbor-config
+resources:
+  - keycloak.yaml
+  - registries.yaml
+  - projects.yaml

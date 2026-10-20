@@ -1,0 +1,178 @@
+{{- if eq .Values.component "ci" }}
+# The team's CI: Pipelines-as-Code runs the PipelineRuns of each team
+# repository's .tekton/ directory (pull requests and pushes) in namespace
+# ci-{{ .Values.team }}, as the team's own Forgejo user ci-{{ .Values.team }}: every run gets that
+# user's token (to clone and report), which reaches the team's repositories
+# only, never the platform's.
+#
+# In team-{{ .Values.team }} (no team pipelines run there): the user, its password
+# (Secret forgejo-bot, applications/<org>/{{ .Values.team }}/argocd/, generated) and its
+# membership of the Forgejo team, and one webhook per repository (secret:
+# Secret forgejo-webhook, generated). In ci-{{ .Values.team }}: its token, the
+# Pipelines-as-Code Repository objects and the Harbor robot (harbor.yaml);
+# the site's CA comes from trust-manager (docs/explanation/site-ca.md).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ci-{{ .Values.team }}
+  labels:
+    example.org/org: {{ .Values.organization }}
+    example.org/team: {{ .Values.team }}
+    # baseline, not restricted: image builds (kaniko) run as root in their
+    # container; still no privileged containers, host access or added
+    # capabilities.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline
+    cleanup.example.org/when-orphaned: "true"
+  annotations:
+    example.org/description: "CI of team {{ .Values.team }} (Pipelines-as-Code)"
+    # As team-{{ .Values.team }} (namespace.yaml): kept by Argo CD, deleted by
+    # base/namespace-cleanup once Crossplane is done.
+    argocd.argoproj.io/sync-options: Delete=false
+    cleanup.example.org/applications: example.org/team={{ .Values.team }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ci
+  namespace: ci-{{ .Values.team }}
+spec:
+  hard:
+    {{- toYaml .Values.ci.quota | nindent 4 }}
+---
+# Defaults for steps that set no resources (the quota requires them).
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: ci
+  namespace: ci-{{ .Values.team }}
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 50m, memory: 128Mi}
+      default: {memory: 1Gi}
+---
+# Nothing connects to the pipelines' pods but each other; their outgoing
+# traffic (Forgejo, Harbor, upstream sources) is not restricted.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ci
+  namespace: ci-{{ .Values.team }}
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - {}
+---
+# Members follow their runs: PipelineRuns, TaskRuns, pods and logs (no
+# Secrets).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-view
+  namespace: ci-{{ .Values.team }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: view}
+subjects:
+  - {apiGroup: rbac.authorization.k8s.io, kind: Group, name: oidc:team-{{ .Values.team }}}
+---
+# The team's Forgejo user. Created by Crossplane's user (a Forgejo site
+# admin); deleted with the team (Delete is in the default policies).
+apiVersion: user.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: User
+metadata:
+  name: ci-{{ .Values.team }}
+  namespace: {{ include "team.ns" . }}
+spec:
+  {{- include "team.crossplane" . | nindent 2 }}
+  forProvider:
+    login: ci-{{ .Values.team }}
+    email: ci-{{ .Values.team }}@ci.example.org
+    fullName: "CI of team {{ .Values.team }}"
+    mustChangePassword: false
+    passwordSecretRef: {name: forgejo-bot, key: password}
+---
+# Member of the Forgejo team: write access to the team's repositories (to
+# report statuses and comment on pull requests), nothing else.
+apiVersion: organization.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: TeamMember
+metadata:
+  name: {{ .Values.team }}-ci-{{ .Values.team }}
+  namespace: {{ include "team.ns" . }}
+spec:
+  {{- include "team.crossplane" . | nindent 2 }}
+  forProvider:
+    teamIdRef: {name: {{ .Values.team }}}
+    user: ci-{{ .Values.team }}
+---
+# Signs in as the user (Forgejo makes tokens only for the user who signs in
+# with a password): Secret forgejo-bot (host, username, password).
+apiVersion: forgejo.m.crossplane.brobald.be/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: ci-{{ .Values.team }}
+spec:
+  credentials:
+    source: Secret
+    secretRef: {namespace: {{ include "team.ns" . }}, name: forgejo-bot, key: credentials}
+---
+# The user's token, for Pipelines-as-Code: Secret forgejo-token, key
+# attribute.token. Renaming it makes a new token (and deletes this one).
+apiVersion: user.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: PersonalAccessToken
+metadata:
+  name: pipelines-as-code
+  namespace: ci-{{ .Values.team }}
+spec:
+  providerConfigRef: {kind: ClusterProviderConfig, name: ci-{{ .Values.team }}}
+  writeConnectionSecretToRef: {name: forgejo-token}
+  forProvider:
+    user: ci-{{ .Values.team }}
+    name: pipelines-as-code
+    scopes: [write:issue, write:repository, read:user, read:organization]
+{{- range $repo := include "team.repos" . | fromJsonArray }}
+---
+# {{ $.Values.organization }}/{{ $repo }}: its webhook to Pipelines-as-Code, and PaC's Repository.
+apiVersion: repository.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: Webhook
+metadata:
+  name: {{ $repo }}-pipelines-as-code
+  namespace: {{ include "team.ns" $ }}
+spec:
+  {{- include "team.crossplane" $ | nindent 2 }}
+  forProvider:
+    repositoryIdRef: {name: {{ $repo }}}
+    type: forgejo
+    active: true
+    # As Forgejo stores them (it expands pull_request).
+    events: [push, issue_comment, pull_request, pull_request_assign, pull_request_label, pull_request_milestone, pull_request_comment, pull_request_review_approved, pull_request_review_rejected, pull_request_review_comment, pull_request_sync, pull_request_review_request]
+    configSecretRef: {name: forgejo-webhook}
+---
+apiVersion: pipelinesascode.tekton.dev/v1alpha1
+kind: Repository
+metadata:
+  name: {{ $repo }}
+  namespace: ci-{{ $.Values.team }}
+spec:
+  url: {{ $.Values.forgejoURL }}/{{ $.Values.organization }}/{{ $repo }}
+  concurrency_limit: 2
+  # Links in the statuses go to the team's Tekton Dashboard (dashboard.yaml;
+  # PaC's custom-console-* settings use this parameter).
+  params:
+    - {name: tekton_dashboard, value: {{ include "team.tektonHost" $ }}}
+  # Who may run pull requests: members of the Forgejo team (ok_to_test: who
+  # may approve others' with /ok-to-test). Without a policy PaC asks Forgejo
+  # for the author's permission on the repository, which only a repository
+  # admin may read, and ci-{{ $.Values.team }} is a writer (an admin could delete the
+  # repository).
+  settings:
+    policy:
+      pull_request: [{{ $.Values.team }}]
+      ok_to_test: [{{ $.Values.team }}]
+  git_provider:
+    type: forgejo
+    url: {{ $.Values.forgejoURL }}
+    secret: {name: forgejo-token, key: attribute.token}
+    webhook_secret: {name: pac-webhook, key: webhook.secret}
+{{- end }}
+{{- end }}

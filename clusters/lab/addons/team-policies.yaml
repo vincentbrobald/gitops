@@ -1,0 +1,21 @@
+# Cluster-wide rules of the teams: ClusterRole team-deployer and the
+# admission policy team-routes (base/team-policies).
+# Hand-written: deploy-talos.py leaves this file alone.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: team-policies
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: platform-infra
+  source:
+    repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+    targetRevision: main
+    path: base/team-policies
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [ServerSideApply=true]

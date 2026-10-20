@@ -1,0 +1,71 @@
+{{- if eq .Values.component "core" }}
+# The team's repositories in organization {{ .Values.organization }}: {{ .Values.team }}-gitops (its
+# apps/ directory holds the team's Argo CD Applications and AppProjects,
+# synced by the root Application below: an app-of-apps) and those listed in
+# team.yaml. Private (the team, which may write, and the organization's
+# owners), created with a README, never deleted by Crossplane (no Delete).
+# LateInitialize: Forgejo assigns their IDs (see keycloak.yaml). The team's
+# Argo CD reads them with one read-only deploy key (applications/<org>/<team>/argocd).
+{{- range $i, $repo := include "team.repos" . | fromJsonArray }}
+{{- if $i }}
+---
+{{- end }}
+apiVersion: repository.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: Repository
+metadata:
+  name: {{ $repo }}
+  namespace: {{ include "team.ns" $ }}
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  {{- include "team.crossplane" $ | nindent 2 }}
+  forProvider:
+    owner: {{ $.Values.organization }}
+    name: {{ $repo }}
+    {{- if eq $repo (printf "%s-gitops" $.Values.team) }}
+    description: "Argo CD of team {{ $.Values.team }} (apps/: its Applications)"
+    {{- else }}
+    description: "Repository of team {{ $.Values.team }}"
+    {{- end }}
+    private: true
+    autoInit: true
+    defaultBranch: main
+---
+# The repository belongs to the Forgejo team (its permission applies).
+apiVersion: repository.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: TeamRepository
+metadata:
+  name: {{ $repo }}
+  namespace: {{ include "team.ns" $ }}
+spec:
+  {{- include "team.crossplane" $ | nindent 2 }}
+  forProvider:
+    teamIdRef: {name: {{ $.Values.team }}}
+    organization: {{ $.Values.organization }}
+    repositoryRef: {name: {{ $repo }}}
+{{- end }}
+---
+# The team's Argo CD syncs apps/ of its repository (read through the deploy
+# key of applications/{{ .Values.organization }}/{{ .Values.team }}/argocd): the Applications there are
+# the team's. The platform keeps this one as it is (self-heal).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: {{ include "team.ns" . }}
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.repoBase }}/{{ .Values.organization }}/{{ .Values.team }}-gitops.git
+    targetRevision: main
+    path: .
+    directory:
+      recurse: true
+      include: '{apps/*.yaml,apps/*.yml,apps/**/*.yaml,apps/**/*.yml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ include "team.ns" . }}
+  syncPolicy:
+    # allowEmpty: removing the last file of apps/ removes its objects (Argo
+    # CD otherwise refuses an automated sync that leaves nothing).
+    automated: {prune: true, selfHeal: true, allowEmpty: true}
+{{- end }}

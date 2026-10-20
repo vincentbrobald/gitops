@@ -1,0 +1,7 @@
+# Who the teams' generated Secrets (applications/<org>/<team>/argocd/*.enc.yaml)
+# are encrypted for: cluster lab's key and the admin key, as in
+# clusters/lab/.sops.yaml. tools/teams.py runs sops from here.
+creation_rules:
+- path_regex: .*\.enc\.yaml$
+  encrypted_regex: ^(data|stringData)$
+  age: age1-replace-with-your-age-public-key,age1-replace-with-your-age-public-key

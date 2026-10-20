@@ -1,0 +1,8 @@
+# Environment dev (namespace dev-platform-hello), an overlay of ../../base:
+# quota small (the base's), and the host name
+# platform-hello-dev.apps.lab.example.org.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - listeners.yaml

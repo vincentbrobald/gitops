@@ -1,0 +1,9 @@
+# lab's render-only Argo CD: the shared base, and the credentials to read this
+# repository (SOPS-encrypted; decrypted by the production Argo CD's KSOPS
+# when it deploys this, not by the preview, which never decrypts).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/argocd-preview
+generators:
+  - secret-generator.yaml

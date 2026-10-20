@@ -1,0 +1,123 @@
+# The platform's projects: public (anyone may pull: the clusters pull without credentials), scanned by
+# Trivy on push. Pushed to by the CI of their repositories (robot accounts
+# with their pipelines). Never deleted by Crossplane (no Delete: a project
+# holds images).
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Project
+metadata:
+  name: providers
+  annotations:
+    description: "Crossplane provider packages built here (provider-forgejo)"
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: providers
+    public: true
+    vulnerabilityScanning: true
+---
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Project
+metadata:
+  name: gitops-scanner
+  annotations:
+    description: "The gitops merge check's image"
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: gitops-scanner
+    public: true
+    vulnerabilityScanning: true
+---
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Project
+metadata:
+  name: pac-demo
+  annotations:
+    description: "Images of the pac-demo pipeline"
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: pac-demo
+    public: true
+    vulnerabilityScanning: true
+---
+# The pull-through mirrors: <upstream>/<image> (Docker Hub's
+# official images need library/: docker.io/library/nginx), so the clusters'
+# mirror settings stay as they are. Public, filled on first pull. Each
+# points at its upstream registry by Harbor's ID (registryId:
+# status.atProvider.registryId of the Registry in registries.yaml; the
+# provider has no reference for it).
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Project
+metadata:
+  name: docker-io
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: docker.io
+    public: true
+    registryId: 3   # Registry docker-io
+---
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Project
+metadata:
+  name: ghcr-io
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: ghcr.io
+    public: true
+    registryId: 1   # Registry ghcr-io
+---
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Project
+metadata:
+  name: quay-io
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: quay.io
+    public: true
+    registryId: 5   # Registry quay-io
+---
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Project
+metadata:
+  name: registry-k8s-io
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: registry.k8s.io
+    public: true
+    registryId: 2   # Registry registry-k8s-io
+---
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Project
+metadata:
+  name: gcr-io
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: gcr.io
+    public: true
+    registryId: 6   # Registry gcr-io
+---
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Project
+metadata:
+  name: factory-talos-dev
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: factory.talos.dev
+    public: true
+    registryId: 4   # Registry factory-talos-dev

@@ -1,0 +1,81 @@
+{{- if eq .Values.component "packages" }}
+# The team's Harbor project ({{ .Values.team }}: images at
+# registry.example.org/{{ .Values.team }}/<image>), through Crossplane
+# (provider-harbor). Public for pulls, as every project of the site (the
+# clusters pull without credentials); pushing is the team's: its Keycloak
+# group team-{{ .Values.team }} is maintainer (push, tags, scans) with each
+# member's own Harbor login, and the robot account below serves its CI.
+# The project is kept in Harbor when this goes (no Delete: it holds images);
+# LateInitialize saves the ID Harbor assigns.
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Project
+metadata:
+  name: {{ .Values.team }}
+  namespace: {{ include "team.ns" . }}
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  {{- include "team.crossplane" . | nindent 2 }}
+  forProvider:
+    name: {{ .Values.team }}
+    public: true
+    vulnerabilityScanning: true
+    storageQuota: {{ .Values.harbor.storageQuotaGB }}
+---
+apiVersion: project.harbor.m.crossplane.io/v1alpha1
+kind: MemberGroup
+metadata:
+  name: team-{{ .Values.team }}
+  namespace: {{ include "team.ns" . }}
+spec:
+  {{- include "team.crossplane" . | nindent 2 }}
+  forProvider:
+    projectIdRef: {name: {{ .Values.team }}}
+    groupName: team-{{ .Values.team }}
+    type: oidc
+    role: maintainer
+---
+# The team's CI: push and pull in its project only. Harbor generates the
+# secret; Crossplane publishes it in Secret harbor-push of ci-{{ .Values.team }} (key
+# attribute.secret; the user name is robot${{ .Values.team }}+{{ .Values.team }}-ci), where the
+# team's pipelines use it; the members may read it too (Role below), e.g.
+# for a CI elsewhere. Deleting it revokes it.
+apiVersion: robot.harbor.m.crossplane.io/v1alpha1
+kind: Account
+metadata:
+  name: harbor-ci
+  namespace: ci-{{ .Values.team }}
+spec:
+  {{- include "team.crossplane" . | nindent 2 }}
+  writeConnectionSecretToRef: {name: harbor-push}
+  forProvider:
+    name: {{ .Values.team }}-ci
+    description: CI of team {{ .Values.team }}, pushes to project {{ .Values.team }}
+    level: project
+    duration: -1
+    permissions:
+      - kind: project
+        namespace: {{ .Values.team }}
+        access:
+          - {action: push, resource: repository}
+          - {action: pull, resource: repository}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: harbor-push-reader
+  namespace: ci-{{ .Values.team }}
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [harbor-push]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: harbor-push-reader
+  namespace: ci-{{ .Values.team }}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: harbor-push-reader}
+subjects:
+  - {apiGroup: rbac.authorization.k8s.io, kind: Group, name: oidc:team-{{ .Values.team }}}
+{{- end }}

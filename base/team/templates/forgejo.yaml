@@ -1,0 +1,51 @@
+{{- if eq .Values.component "core" }}
+# Forgejo team {{ .Values.team }} in organization {{ .Values.organization }}, through
+# Crossplane (provider-forgejo). Its members may create repositories in the
+# organization and write to the team's repositories (those a member creates,
+# or that an owner adds to the team), not to the others. The team is kept in
+# Forgejo when this goes (no Delete: its repositories would lose it); members
+# follow the list. A member needs a Forgejo account, made at their first
+# login: until then their TeamMember reports an error and retries.
+# LateInitialize: the team's ID is Forgejo's, saved as the external name
+# only by a late-initialization update (see keycloak.yaml).
+apiVersion: organization.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: Team
+metadata:
+  name: {{ .Values.team }}
+  namespace: {{ include "team.ns" . }}
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  {{- include "team.crossplane" . | nindent 2 }}
+  forProvider:
+    organization: {{ .Values.organization }}
+    name: {{ .Values.team }}
+    description: {{ .Values.description | quote }}
+    permission: write
+    canCreateOrgRepo: true
+    includesAllRepositories: false
+    # Every unit, as Forgejo reads them back (a missing one differs forever).
+    unitsMap:
+      repo.actions: write
+      repo.code: write
+      repo.ext_issues: read
+      repo.ext_wiki: read
+      repo.issues: write
+      repo.packages: write
+      repo.projects: write
+      repo.pulls: write
+      repo.releases: write
+      repo.wiki: write
+{{- range .Values.members }}
+---
+apiVersion: organization.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: TeamMember
+metadata:
+  name: {{ $.Values.team }}-{{ . }}
+  namespace: {{ include "team.ns" $ }}
+spec:
+  {{- include "team.crossplane" $ | nindent 2 }}
+  forProvider:
+    teamIdRef: {name: {{ $.Values.team }}}
+    user: {{ . }}
+{{- end }}
+{{- end }}

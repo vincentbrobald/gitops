@@ -1,0 +1,24 @@
+{{- if eq .Values.component "core" }}
+# Platform limits: the team's tools can't take the cluster. Not the team's
+# to change (its Argo CD can't write here).
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: team
+  namespace: {{ include "team.ns" . }}
+spec:
+  hard:
+    {{- toYaml .Values.quota | nindent 4 }}
+---
+# Defaults for containers that set no resources (the quota requires them).
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: team
+  namespace: {{ include "team.ns" . }}
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 50m, memory: 128Mi}
+      default: {memory: 512Mi}
+{{- end }}

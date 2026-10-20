@@ -1,0 +1,37 @@
+# Cluster lab's Pipelines-as-Code: the shared base, the controller's webhook
+# route and URL, its links to the Tekton Dashboards. The repositories it
+# serves are the platform's CI repositories (clusters/lab/ci, docs/reference/ci-repository.md) and
+# the teams' (base/team).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../base/tekton/pipelines-as-code
+  - controller-route.yaml
+
+patches:
+  # The URL Forgejo webhooks call (controller-route.yaml).
+  - patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata: {name: pipelines-as-code-info, namespace: pipelines-as-code}
+      data:
+        controller-url: https://pac.apps.lab.example.org
+  # Links in commit statuses and comments go to a Tekton Dashboard: the
+  # one each Repository names in its parameter tekton_dashboard (a host
+  # name): the platform's for the platform's repositories (patch below), the
+  # team's own for a team's (base/team, ci.yaml and dashboard.yaml).
+  - patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata: {name: pipelines-as-code, namespace: pipelines-as-code}
+      data:
+        # Empty: when set, PaC links there and ignores custom-console-*.
+        tekton-dashboard-url: ""
+        custom-console-name: Tekton Dashboard
+        # A plain URL (PaC validates it and ignores a template, which then
+        # disables the custom console): the per-run links below carry the
+        # Repository's Dashboard.
+        custom-console-url: https://tekton.apps.lab.example.org
+        custom-console-url-namespace: "https://{{ tekton_dashboard }}/#/namespaces/{{ namespace }}/pipelineruns"
+        custom-console-url-pr-details: "https://{{ tekton_dashboard }}/#/namespaces/{{ namespace }}/pipelineruns/{{ pr }}"
+        custom-console-url-pr-tasklog: "https://{{ tekton_dashboard }}/#/namespaces/{{ namespace }}/pipelineruns/{{ pr }}?pipelineTask={{ task }}"

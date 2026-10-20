@@ -1,0 +1,44 @@
+# provider-artifact-keeper (package providers/artifact-keeper): Artifact
+# Keeper's repositories, permissions, OIDC login, service accounts and tokens,
+# kinds in artifactkeeper.crossplane.brobald.be. The site CA from trust-manager
+# (ConfigMap site-root-ca); credentials: Secret artifact-keeper-credentials.
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: artifact-keeper
+spec:
+  package: registry.example.org/providers/artifact-keeper:v0.2.0-5fb9cc5
+  runtimeConfigRef:
+    name: provider-artifact-keeper
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-artifact-keeper
+spec:
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        spec:
+          containers:
+            - name: package-runtime
+              env:
+                - {name: SSL_CERT_DIR, value: /etc/site-ca}
+              volumeMounts:
+                - {name: site-ca, mountPath: /etc/site-ca, readOnly: true}
+          volumes:
+            - name: site-ca
+              configMap: {name: site-root-ca}
+---
+apiVersion: artifactkeeper.crossplane.brobald.be/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: artifact-keeper-credentials
+      key: credentials

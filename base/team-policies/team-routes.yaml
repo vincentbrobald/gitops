@@ -1,0 +1,40 @@
+# Routes in a team's namespaces (label example.org/team) attach only to a
+# ListenerSet of their own namespace, whose host names the platform made
+# from the environment overlays (policy team-listeners: <team>-<name>). Without this, a team
+# could attach a route to the shared gateway's listeners and answer for
+# another service's host name. cert-manager is exempt: its HTTP-01 solver
+# routes attach to the gateway's HTTP listener for the time of a challenge.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: team-routes
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - {key: example.org/team, operator: Exists}
+    resourceRules:
+      - apiGroups: [gateway.networking.k8s.io]
+        apiVersions: ["*"]
+        operations: [CREATE, UPDATE]
+        resources: [httproutes, grpcroutes, tlsroutes, tcproutes, udproutes]
+  matchConditions:
+    - name: not-cert-manager
+      expression: request.userInfo.username != 'system:serviceaccount:cert-manager:cert-manager'
+  validations:
+    - expression: >-
+        !has(object.spec.parentRefs) || object.spec.parentRefs.all(p,
+        has(p.kind) && p.kind == 'ListenerSet' &&
+        (!has(p.namespace) || p.namespace == object.metadata.namespace))
+      message: >-
+        a route in a team namespace attaches to a ListenerSet of its own
+        namespace (kind: ListenerSet; host names come from the environment overlay)
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: team-routes
+spec:
+  policyName: team-routes
+  validationActions: [Deny]

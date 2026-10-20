@@ -1,0 +1,16 @@
+# Cluster-wide rules of the teams (docs/reference/team-files.md, docs/reference/team-namespaces.md): what a
+# team's Argo CD may manage in its application namespaces (ClusterRole
+# team-deployer) and where the routes of team namespaces may attach
+# (ValidatingAdmissionPolicy team-routes) and which host names their
+# listeners may serve (team-listeners), and what Crossplane may do in
+# Forgejo with its site-admin user (forgejo-users: CI users and tokens only;
+# team-forgejo: a team's Forgejo objects stay the team's). Application
+# team-policies.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - team-deployer.yaml
+  - team-routes.yaml
+  - team-listeners.yaml
+  - forgejo-users.yaml
+  - team-forgejo.yaml

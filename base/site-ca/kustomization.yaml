@@ -1,0 +1,10 @@
+# The site's root CA (public), the one file: as ConfigMap site-root-ca in the
+# namespace of whatever includes this (kustomize "namespace:"). Only
+# clusters/<cluster>/trust/source includes it, as trust-manager's source;
+# trust-manager publishes site-root-ca to the namespaces (docs/explanation/site-ca.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+  - name: site-root-ca
+    files: [site-root-ca.crt]
+    options: {disableNameSuffixHash: true}

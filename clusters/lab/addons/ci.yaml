@@ -1,0 +1,54 @@
+# The platform's CI repositories: one Application ci-<name> per folder
+# clusters/lab/ci/<name>/ (docs/reference/ci-repository.md): the chart base/ci-repository with the
+# folder's repository.yaml as values (namespace, Pipelines-as-Code's
+# Repository, Forgejo settings and Harbor robot through Crossplane), and the
+# folder itself for its Secrets (SOPS; tools/ci.py makes them and checks it).
+# Hand-written: deploy-talos.py leaves this file alone.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: ci-repositories
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+        revision: main
+        files:
+          - path: clusters/lab/ci/*/repository.yaml
+  template:
+    metadata:
+      name: 'ci-{{ .path.basename }}'
+      labels: {example.org/ci-repository: '{{ .path.basename }}'}
+      annotations:
+        argocd.argoproj.io/compare-options: ServerSideDiff=true
+    spec:
+      project: platform-services
+      sources:
+        - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+          targetRevision: main
+          path: base/ci-repository
+          helm:
+            releaseName: 'ci-{{ .path.basename }}'
+            valueFiles:
+              - '$gitops/{{ .path.path }}/repository.yaml'
+            valuesObject:
+              name: '{{ .path.basename }}'
+              # Its pipelines' status links (PaC custom-console-*).
+              tektonDashboard: tekton.apps.lab.example.org
+        - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+          targetRevision: main
+          ref: gitops
+        - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+          targetRevision: main
+          path: '{{ .path.path }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .namespace }}'
+      syncPolicy:
+        automated: {prune: true, selfHeal: true}
+        # Crossplane's kinds and PaC's Repository come with other Applications.
+        syncOptions: [ServerSideApply=true, SkipDryRunOnMissingResource=true]
+        retry: {limit: 10, backoff: {duration: 10s, factor: 2, maxDuration: 3m}}

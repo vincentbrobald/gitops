@@ -1,0 +1,19 @@
+# Artifact Keeper's login through Keycloak (provider-artifact-keeper): the
+# client from keycloak.yaml, its secret from Secret artifacts-oidc. The
+# groups claim becomes Artifact Keeper groups (team-<team>, which
+# Permissions name; registry-admins, its admins). Found by name: an
+# existing provider configuration is adopted.
+apiVersion: artifactkeeper.crossplane.brobald.be/v1alpha1
+kind: OIDCProvider
+metadata:
+  name: keycloak
+spec:
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: keycloak
+    issuerURL: https://oauth.example.org/realms/example
+    clientID: artifact-keeper
+    clientSecretSecretRef: {name: artifacts-oidc, key: clientSecret}
+    redirectURI: https://artifacts.example.org/api/v1/auth/sso/oidc/callback
+    adminGroup: registry-admins

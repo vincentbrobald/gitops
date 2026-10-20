@@ -1,0 +1,21 @@
+# Deletes namespaces whose owning Applications are gone, once Crossplane is
+# done in them (base/namespace-cleanup): a removed team's team-<team> and
+# ci-<team>. Hand-written: deploy-talos.py leaves this file alone.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: namespace-cleanup
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: platform-infra
+  source:
+    repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+    targetRevision: main
+    path: base/namespace-cleanup
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [ServerSideApply=true]

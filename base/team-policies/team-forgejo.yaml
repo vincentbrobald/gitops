@@ -1,0 +1,61 @@
+# Crossplane reaches every Forgejo repository (its user is a site admin):
+# in a team's namespaces (label example.org/team, made by base/team), its
+# Forgejo objects stay the team's. Repositories are in the team's
+# organization (label example.org/org) and named <team>-...; the Forgejo
+# team is the team's own; per-repository objects (deploy keys, webhooks,
+# collaborators, branch protections, team repositories) and team members
+# reference objects of the same namespace, so they reach only those
+# repositories and that team; no organizations.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: team-forgejo
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - {key: example.org/team, operator: Exists}
+    resourceRules:
+      - apiGroups: [repository.forgejo.m.crossplane.brobald.be, organization.forgejo.m.crossplane.brobald.be]
+        apiVersions: ["*"]
+        operations: [CREATE, UPDATE]
+        resources: ["*"]
+  variables:
+    - name: kind
+      expression: request.resource.resource
+    - name: team
+      expression: namespaceObject.metadata.labels['example.org/team']
+    - name: org
+      expression: "'example.org/org' in namespaceObject.metadata.labels ? namespaceObject.metadata.labels['example.org/org'] : ''"
+    - name: fp
+      expression: object.spec.?forProvider.orValue({})
+  validations:
+    - expression: variables.kind != 'organizations'
+      message: organizations are made in org-<org> (applications/<org>/organization.yaml), not by a team
+    - expression: >-
+        variables.kind != 'repositories' ||
+        (variables.fp.?owner.orValue('') == variables.org && variables.fp.?name.orValue('').startsWith(variables.team + '-'))
+      messageExpression: "'a repository of team ' + variables.team + ' is ' + variables.org + '/' + variables.team + '-...'"
+    - expression: >-
+        variables.kind != 'teams' ||
+        (variables.fp.?organization.orValue('') == variables.org && variables.fp.?name.orValue('') == variables.team)
+      messageExpression: "'the Forgejo team here is ' + variables.org + '/' + variables.team"
+    - expression: >-
+        !(variables.kind in ['deploykeys', 'webhooks', 'collaborators', 'branchprotections']) ||
+        has(variables.fp.repositoryIdRef)
+      message: a per-repository object of a team references its Repository (repositoryIdRef), not a repository ID
+    - expression: >-
+        variables.kind != 'teamrepositories' ||
+        (has(variables.fp.repositoryRef) && has(variables.fp.teamIdRef) && variables.fp.?organization.orValue('') == variables.org)
+      message: a team repository references the team's Repository and Team (repositoryRef, teamIdRef) in its organization
+    - expression: variables.kind != 'teammembers' || has(variables.fp.teamIdRef)
+      message: a team member references the team's Team (teamIdRef), not a team ID
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: team-forgejo
+spec:
+  policyName: team-forgejo
+  validationActions: [Deny]

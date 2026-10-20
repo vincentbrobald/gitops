@@ -1,0 +1,324 @@
+# Organizations, teams and their environment namespaces, from the tree
+# applications/ (docs/reference/team-files.md, docs/reference/team-namespaces.md; tools/teams.py checks it):
+#
+#   applications/<org>/organization.yaml        → team-organizations: org-<org>
+#   applications/<org>/<team>/team.yaml         → team-platform: team-<team>,
+#                                                  team-<team>-ci, team-<team>-packages;
+#                                                  team-argocd: team-<team>-argocd
+#   applications/<org>/<team>/<ns>/env/<env>/   → team-namespaces: ns-<env>-<team>-<ns>
+#
+# - org-<org>: base/organization, the Forgejo organization and its owners
+#   (namespace org-<org>), with organization.yaml as values.
+# - team-<team>: base/team (component core), the platform's part of a team
+#   (namespace team-<team>, limits, Keycloak group and members in the
+#   organization's realm, Forgejo team, members and repositories, the root
+#   Application and Keycloak client of its Argo CD), and
+#   applications/<org>/<team>/argocd (the repositories' deploy keys, Argo CD
+#   credential and CI Secrets, generated).
+# - team-<team>-ci: base/team (ci), namespace ci-<team>, the CI user and its
+#   token, the repositories' webhooks and Pipelines-as-Code Repositories, the
+#   team's Tekton Dashboard.
+# - team-<team>-packages: base/team (packages), the Harbor project, group and
+#   CI robot, the Artifact Keeper repositories, permissions and CI token.
+# - team-<team>-argocd: the team's own Argo CD in team-<team>, namespace-scoped,
+#   at https://argocd-<team>.apps.lab.example.org.
+# - ns-<env>-<team>-<ns>: applications/<org>/<team>/<ns>/env/<env>, an
+#   overlay of the namespace's base (<ns>/base), as namespace
+#   <env>-<team>-<ns>, the team filled in.
+#
+# Removing a team's directory removes its Applications (the Keycloak group
+# and client, the Forgejo team and repositories stay: no Delete).
+# Hand-written: deploy-talos.py leaves this file alone.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: team-organizations
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+        revision: main
+        files:
+          - path: applications/*/organization.yaml
+  template:
+    metadata:
+      name: 'org-{{ .path.basename }}'
+      labels: {example.org/org: '{{ .path.basename }}'}
+      annotations:
+        argocd.argoproj.io/compare-options: ServerSideDiff=true
+    spec:
+      project: tenants
+      sources:
+        - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+          targetRevision: main
+          path: base/organization
+          helm:
+            releaseName: 'org-{{ .path.basename }}'
+            valueFiles: ['$gitops/applications/{{ .path.basename }}/organization.yaml']
+            parameters:
+              - {name: organization, value: '{{ .path.basename }}'}
+        - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+          targetRevision: main
+          ref: gitops
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'org-{{ .path.basename }}'
+      syncPolicy:
+        automated: {prune: true, selfHeal: true}
+        syncOptions: [CreateNamespace=true, ServerSideApply=true, SkipDryRunOnMissingResource=true]
+        retry: {limit: 10, backoff: {duration: 10s, factor: 2, maxDuration: 3m}}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: team-platform
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    # Each team, with its organization's settings (keycloak.realm: .org.path
+    # is the organization's directory, .path the team's), times the chart's
+    # three components (the list second: a matrix fills its second
+    # generator's templates with the first's parameters).
+    - matrix:
+        generators:
+          - matrix:
+              generators:
+                - git:
+                    repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+                    revision: main
+                    pathParamPrefix: org
+                    files:
+                      - path: applications/*/organization.yaml
+                - git:
+                    repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+                    revision: main
+                    files:
+                      - path: 'applications/{{ .org.path.basename }}/*/team.yaml'
+                  # Step 1 of removing a team (removed: true): its Applications go,
+                  # while the tenants project still permits its namespaces.
+                  selector:
+                    matchExpressions: [{key: removed, operator: NotIn, values: ["true"]}]
+          - list:
+              elements:
+                - {component: core}
+                - {component: ci}
+                - {component: packages}
+  template:
+    metadata:
+      # core: team-<team>; the others team-<team>-<component>.
+      name: 'team-{{ .path.basename }}{{ if ne .component "core" }}-{{ .component }}{{ end }}'
+      labels:
+        example.org/org: '{{ .org.path.basename }}'
+        example.org/team: '{{ .path.basename }}'
+        example.org/component: '{{ .component }}'
+      annotations:
+        argocd.argoproj.io/compare-options: ServerSideDiff=true
+    spec:
+      project: tenants
+      sources:
+        - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+          targetRevision: main
+          path: base/team
+          helm:
+            releaseName: 'team-{{ .path.basename }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'team-{{ .path.basename }}'
+      syncPolicy:
+        automated: {prune: true, selfHeal: true}
+        syncOptions: [ServerSideApply=true, SkipDryRunOnMissingResource=true]
+        # Crossplane resolves references (Group, Team, Repository, Client)
+        # after the first apply: retry until they exist.
+        retry: {limit: 10, backoff: {duration: 10s, factor: 2, maxDuration: 3m}}
+  # team.yaml itself as values (its keys are the chart's: the chart's
+  # values.schema.json refuses an unknown or mistyped one), the directory
+  # names, the organization's realm and the component; core also syncs
+  # applications/<org>/<team>/argocd (the deploy keys and the generated
+  # Secrets, which ci and packages read in the same namespaces).
+  templatePatch: |
+    spec:
+      sources:
+        - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+          targetRevision: main
+          path: base/team
+          helm:
+            releaseName: 'team-{{ .path.basename }}'
+            valueFiles:
+              - '$gitops/{{ .path.path }}/team.yaml'
+            valuesObject:
+              component: {{ .component | quote }}
+              team: {{ .path.basename | quote }}
+              organization: {{ .org.path.basename | quote }}
+              realm: {{ .keycloak.realm | quote }}
+              cluster: lab
+              appsDomain: apps.lab.example.org
+        - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+          targetRevision: main
+          ref: gitops
+      {{- if eq .component "core" }}
+        - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+          targetRevision: main
+          path: '{{ .path.path }}/argocd'
+      {{- end }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: team-argocd
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - git:
+              repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+              revision: main
+              pathParamPrefix: org
+              files:
+                - path: applications/*/organization.yaml
+          - git:
+              repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+              revision: main
+              files:
+                - path: 'applications/{{ .org.path.basename }}/*/team.yaml'
+            selector:
+              matchExpressions: [{key: removed, operator: NotIn, values: ["true"]}]
+  template:
+    metadata:
+      name: 'team-{{ .path.basename }}-argocd'
+      labels: {example.org/org: '{{ .org.path.basename }}', example.org/team: '{{ .path.basename }}'}
+      annotations:
+        argocd.argoproj.io/compare-options: ServerSideDiff=true
+    spec:
+      project: tenants
+      sources:
+        - repoURL: https://argoproj.github.io/argo-helm
+          chart: argo-cd
+          targetRevision: 10.10.5   # the clusters' Argo CD (addons/argocd.yaml)
+          helm:
+            releaseName: argocd
+            valueFiles:
+              - $gitops/base/team/argocd-values.yaml
+              - '$gitops/{{ .path.path }}/argocd/argocd-namespaces.yaml'
+        - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+          targetRevision: main
+          ref: gitops
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'team-{{ .path.basename }}'
+      syncPolicy:
+        automated: {prune: true, selfHeal: true}
+        syncOptions: [CreateNamespace=true, ServerSideApply=true]
+        retry: {limit: 10, backoff: {duration: 10s, factor: 2, maxDuration: 3m}}
+  # Per team: host name, Keycloak client (argocd-lab-team-<team>, public,
+  # PKCE) in the organization's realm, installation ID (tells its objects
+  # from the platform Argo CD's), RBAC: the team's group and the platform's
+  # argocd-admins are admins.
+  templatePatch: |
+    spec:
+      sources:
+        - repoURL: https://argoproj.github.io/argo-helm
+          chart: argo-cd
+          targetRevision: 10.10.5
+          helm:
+            releaseName: argocd
+            valueFiles:
+              - $gitops/base/team/argocd-values.yaml
+              - $gitops/{{ .path.path }}/argocd/argocd-namespaces.yaml
+            valuesObject:
+              global:
+                domain: argocd-{{ .path.basename }}.apps.lab.example.org
+              configs:
+                cm:
+                  installationID: team-{{ .path.basename }}
+                  oidc.config: |
+                    name: Keycloak
+                    issuer: https://oauth.example.org/realms/{{ .keycloak.realm }}
+                    clientID: argocd-lab-team-{{ .path.basename }}
+                    enablePKCEAuthentication: true
+                    requestedScopes: [openid, profile, email]
+                rbac:
+                  policy.csv: |
+                    g, team-{{ .path.basename }}, role:admin
+                    g, argocd-admins, role:admin
+        - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+          targetRevision: main
+          ref: gitops
+---
+# One namespace per environment directory: the namespace's base (the parent
+# directory) built with the environment as a kustomize Component.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: team-namespaces
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    # The environments of the teams not being removed (removed: true in
+    # team.yaml): team.yaml first, then the team's env/<env> directories.
+    - matrix:
+        generators:
+          - git:
+              repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+              revision: main
+              pathParamPrefix: team
+              files:
+                - path: applications/*/*/team.yaml
+            selector:
+              matchExpressions: [{key: removed, operator: NotIn, values: ["true"]}]
+          - git:
+              repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+              revision: main
+              directories:
+                - path: '{{ .team.path.path }}/*/env/*'
+  template:
+    metadata:
+      # applications/<org>/<team>/<ns>/env/<env>: an overlay of ../../base
+      name: 'ns-{{ index .path.segments 5 }}-{{ index .path.segments 2 }}-{{ index .path.segments 3 }}'
+      labels:
+        example.org/org: '{{ index .path.segments 1 }}'
+        example.org/team: '{{ index .path.segments 2 }}'
+        example.org/namespace: '{{ index .path.segments 5 }}-{{ index .path.segments 2 }}-{{ index .path.segments 3 }}'
+      annotations:
+        argocd.argoproj.io/compare-options: ServerSideDiff=true
+    spec:
+      project: tenants
+      source:
+        repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+        targetRevision: main
+        path: '{{ .path.path }}'
+        kustomize:
+          namespace: '{{ index .path.segments 5 }}-{{ index .path.segments 2 }}-{{ index .path.segments 3 }}'
+          # The team, in what base/team-namespace leaves as placeholders.
+          patches:
+            - target: {kind: Namespace}
+              patch: |
+                - {op: replace, path: /metadata/name, value: '{{ index .path.segments 5 }}-{{ index .path.segments 2 }}-{{ index .path.segments 3 }}'}
+                - {op: replace, path: /metadata/labels/example.org~1org, value: '{{ index .path.segments 1 }}'}
+                - {op: replace, path: /metadata/labels/example.org~1team, value: '{{ index .path.segments 2 }}'}
+                - {op: replace, path: /metadata/labels/example.org~1app, value: '{{ index .path.segments 3 }}'}
+                - {op: replace, path: /metadata/labels/example.org~1env, value: '{{ index .path.segments 5 }}'}
+                - {op: add, path: /metadata/annotations/cleanup.example.org~1applications, value: 'example.org/namespace={{ index .path.segments 5 }}-{{ index .path.segments 2 }}-{{ index .path.segments 3 }}'}
+            - target: {kind: RoleBinding, name: team-deployer}
+              patch: |
+                - {op: replace, path: /subjects/0/namespace, value: 'team-{{ index .path.segments 2 }}'}
+                - {op: replace, path: /subjects/1/namespace, value: 'team-{{ index .path.segments 2 }}'}
+            - target: {kind: RoleBinding, name: team-view}
+              patch: |
+                - {op: replace, path: /subjects/0/name, value: 'oidc:team-{{ index .path.segments 2 }}'}
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ index .path.segments 5 }}-{{ index .path.segments 2 }}-{{ index .path.segments 3 }}'
+      syncPolicy:
+        automated: {prune: true, selfHeal: true}
+        syncOptions: [ServerSideApply=true]
+        retry: {limit: 10, backoff: {duration: 10s, factor: 2, maxDuration: 3m}}

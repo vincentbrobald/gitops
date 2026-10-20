@@ -1,0 +1,33 @@
+# Never deleted by Crossplane (no Delete): removing the organization's
+# directory leaves it, and its repositories, in Forgejo.
+apiVersion: organization.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: Organization
+metadata:
+  name: {{ .Values.organization }}
+  namespace: org-{{ .Values.organization }}
+  annotations:
+    crossplane.io/external-name: {{ .Values.organization }}
+spec:
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    name: {{ .Values.organization }}
+    fullName: {{ .Values.forgejo.fullName | quote }}
+    description: {{ .Values.forgejo.description | quote }}
+    visibility: {{ .Values.forgejo.visibility }}
+{{- range .Values.owners }}
+---
+# An owner (team Owners), besides crossplane-lab (never remove it by hand):
+# the provider finds the team by name, no team ID needed. Removing the entry
+# removes the owner.
+apiVersion: organization.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: OrganizationOwner
+metadata:
+  name: {{ . }}
+  namespace: org-{{ $.Values.organization }}
+spec:
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    organization: {{ $.Values.organization }}
+    user: {{ . }}
+{{- end }}

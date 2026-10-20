@@ -1,0 +1,56 @@
+# The upstream registries of the proxy caches (projects.yaml), anonymous
+# pulls. Harbor names them; their IDs (status.atProvider.registryId) are
+# what the proxy-cache projects point at.
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Registry
+metadata:
+  name: docker-io
+spec:
+  managementPolicies: [Observe, Create, Update, Delete, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider: {name: docker.io, providerName: docker-hub, endpointUrl: https://hub.docker.com}
+---
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Registry
+metadata:
+  name: ghcr-io
+spec:
+  managementPolicies: [Observe, Create, Update, Delete, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider: {name: ghcr.io, providerName: docker-registry, endpointUrl: https://ghcr.io}
+---
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Registry
+metadata:
+  name: quay-io
+spec:
+  managementPolicies: [Observe, Create, Update, Delete, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider: {name: quay.io, providerName: docker-registry, endpointUrl: https://quay.io}
+---
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Registry
+metadata:
+  name: registry-k8s-io
+spec:
+  managementPolicies: [Observe, Create, Update, Delete, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider: {name: registry.k8s.io, providerName: docker-registry, endpointUrl: https://registry.k8s.io}
+---
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Registry
+metadata:
+  name: gcr-io
+spec:
+  managementPolicies: [Observe, Create, Update, Delete, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider: {name: gcr.io, providerName: docker-registry, endpointUrl: https://gcr.io}
+---
+apiVersion: harbor.m.crossplane.io/v1alpha1
+kind: Registry
+metadata:
+  name: factory-talos-dev
+spec:
+  managementPolicies: [Observe, Create, Update, Delete, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider: {name: factory.talos.dev, providerName: docker-registry, endpointUrl: https://factory.talos.dev}

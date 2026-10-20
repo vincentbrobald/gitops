@@ -1,0 +1,29 @@
+# The application's host names on the ingress gateway: one HTTPS listener
+# each (host names start with "<team>-": policy team-listeners), with a
+# certificate from the site's ACME CA. The team's routes attach here:
+#   parentRefs: [{group: gateway.networking.k8s.io, kind: ListenerSet, name: apps, sectionName: platform-hello-dev}]
+apiVersion: gateway.networking.k8s.io/v1
+kind: ListenerSet
+metadata:
+  name: apps
+spec:
+  parentRef: {name: ingress, namespace: ingress}
+  listeners:
+    - name: platform-hello-dev
+      port: 443
+      protocol: HTTPS
+      hostname: platform-hello-dev.apps.lab.example.org
+      tls:
+        mode: Terminate
+        certificateRefs: [{name: tls-platform-hello-dev}]
+      allowedRoutes: {namespaces: {from: Same}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tls-platform-hello-dev
+spec:
+  secretName: tls-platform-hello-dev
+  dnsNames: [platform-hello-dev.apps.lab.example.org]
+  issuerRef: {kind: ClusterIssuer, name: acme}
+  privateKey: {rotationPolicy: Always, algorithm: ECDSA, size: 256}

@@ -1,0 +1,12 @@
+# Render-only Argo CD (argocd-preview) for the merge-request checks: the part
+# that is the same on every cluster. The Argo CD itself is the argo-cd Helm
+# chart, in the cluster's Application (clusters/<name>/addons/argocd-preview.yaml).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd-preview
+generatorOptions:
+  disableNameSuffixHash: true   # mounted by name from the Helm values; after a
+                                # change, restart the repo-server to load it
+configMapGenerator:
+  - name: ksops-stub
+    files: [ksops=ksops-stub.sh]

@@ -1,0 +1,14 @@
+# A repository of the platform whose pipelines Pipelines-as-Code runs on the
+# cluster (gitops clusters/<cluster>/ci/<name>/repository.yaml), rendered once
+# per repository by the ApplicationSet ci-repositories: its namespace,
+# PaC's Repository, its Forgejo settings (Crossplane: pac-bot as
+# collaborator, the webhook, deploy keys) unless Ansible keeps them, and its
+# Harbor robot (the project itself is the registries topic's). Its Secrets
+# (forgejo-pac, forgejo-webhook, registry-push, others) are in the same
+# folder, SOPS-encrypted, made by tools/ci.py. The site CA (ConfigMap
+# site-root-ca, workspace "ca" of the pipelines) comes from trust-manager
+# (docs/explanation/site-ca.md).
+apiVersion: v2
+name: ci-repository
+version: 0.1.0
+type: application

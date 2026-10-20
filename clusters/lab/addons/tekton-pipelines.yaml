@@ -1,0 +1,25 @@
+# Tekton Pipelines, from its release manifest (tekton/pipelines). Hand-written:
+# deploy-talos.py leaves files without its "Generated" header alone.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tekton-pipelines
+  namespace: argocd
+  annotations:
+    # Compare with what the API server would store (its defaults and the
+    # fields Tekton's controllers fill in are not differences).
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: platform-infra
+  source:
+    repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+    targetRevision: main
+    path: clusters/lab/tekton/pipelines
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tekton-pipelines
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    # Server-side apply: the CRDs are too large for client-side apply.
+    syncOptions: [ServerSideApply=true]
+    retry: {limit: 10, backoff: {duration: 10s, factor: 2, maxDuration: 3m}}

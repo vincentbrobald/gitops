@@ -1,0 +1,73 @@
+# Harbor's Keycloak client (realm example, provider-keycloak), its secret
+# published in Secret harbor-oidc, and the flat "groups" claim. Kept in
+# Keycloak when this goes (no Delete); LateInitialize saves the IDs Keycloak
+# assigns (see docs/explanation/crossplane.md).
+apiVersion: openidclient.keycloak.m.crossplane.io/v1alpha2
+kind: Client
+metadata:
+  name: harbor
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  writeConnectionSecretToRef: {name: harbor-oidc}
+  forProvider:
+    realmId: example
+    clientId: harbor
+    name: Harbor (registry)
+    enabled: true
+    accessType: CONFIDENTIAL
+    standardFlowEnabled: true
+    implicitFlowEnabled: false
+    directAccessGrantsEnabled: false
+    serviceAccountsEnabled: false
+    validRedirectUris: [https://registry.example.org/c/oidc/callback]
+    webOrigins: [https://registry.example.org]
+    validPostLogoutRedirectUris: [https://registry.example.org]
+    frontchannelLogoutEnabled: false
+    fullScopeAllowed: true
+    consentRequired: false
+    useRefreshTokens: true
+---
+apiVersion: openidgroup.keycloak.m.crossplane.io/v1alpha1
+kind: GroupMembershipProtocolMapper
+metadata:
+  name: harbor-groups
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    realmId: example
+    clientIdRef: {name: harbor}
+    name: groups
+    claimName: groups
+    fullPath: false
+    addToIdToken: true
+    addToAccessToken: true
+    addToUserinfo: true
+    addToTokenIntrospection: true
+---
+# Harbor logs in through Keycloak (users are made at their first login,
+# named after their Keycloak user name). Members of registry-admins are
+# Harbor admins; the teams' groups (team-<team>) are members of their
+# projects. The local admin user stays (Crossplane logs in with it).
+# offline_access: Harbor refreshes the token behind a user's CLI secret.
+apiVersion: config.harbor.m.crossplane.io/v1alpha1
+kind: Auth
+metadata:
+  name: oidc
+spec:
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    authMode: oidc_auth
+    primaryAuthMode: true
+    oidcName: Keycloak
+    oidcEndpoint: https://oauth.example.org/realms/example
+    oidcClientId: harbor
+    oidcClientSecretSecretRef: {name: harbor-oidc, key: clientSecret}
+    oidcScope: openid,profile,email,offline_access
+    oidcUserClaim: preferred_username
+    oidcGroupsClaim: groups
+    oidcAdminGroup: registry-admins
+    oidcAutoOnboard: true
+    oidcVerifyCert: true
+    oidcLogout: true

@@ -1,0 +1,16 @@
+# Artifact Keeper (the package registry,
+# artifacts.example.org, on the artifacts VM; infra role artifact_keeper):
+# what it holds, through Crossplane. Application artifact-keeper, namespace
+# artifacts-config.
+# - keycloak.yaml: its Keycloak client (secret in Secret artifacts-oidc) and
+#   the groups claim.
+# - oidc.yaml: its login through that client (provider-artifact-keeper);
+# - repositories.yaml: the shared caches of Maven Central, npmjs, PyPI.
+# The teams' repositories and permissions come with the teams (base/team).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: artifacts-config
+resources:
+  - keycloak.yaml
+  - oidc.yaml
+  - repositories.yaml

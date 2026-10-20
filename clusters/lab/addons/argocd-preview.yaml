@@ -1,0 +1,123 @@
+# Render-only Argo CD for the merge-request checks of this repository
+# (.gitops-check.yaml): the checks submit the Applications and ApplicationSets
+# of a pull request and read back what Argo CD renders from them.
+#
+# It can't deploy anything: no application controller and no ApplicationSet
+# controller (nothing reconciles or syncs), no cluster-wide roles (its service
+# account reaches the API for discovery only), and it never decrypts: its
+# ksops is a stand-in that renders Secrets with redacted values
+# (base/argocd-preview/ksops-stub.sh). Production Argo CD only watches the
+# argocd namespace, so it ignores the Applications created in argocd-preview.
+#
+# Hand-written: deploy-talos.py leaves this file alone.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-preview
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: preview
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      # Same chart as the argocd Application, so the same Argo CD (v3.5.5)
+      # with the same kustomize and helm: change both together.
+      targetRevision: 10.10.5
+      helm:
+        releaseName: argocd-preview
+        valuesObject:
+          crds:
+            install: false        # the production Argo CD owns them
+          createClusterRoles: false
+          controller:
+            replicas: 0
+          applicationSet:
+            replicas: 0           # the API server generates (argocd appset generate)
+          notifications:
+            enabled: false
+          dex:
+            enabled: false
+          server:
+            service:
+              type: ClusterIP     # no route: reached from inside the cluster only
+          configs:
+            params:
+              server.insecure: true
+            cm:
+              admin.enabled: true
+              accounts.ci: apiKey
+              kustomize.buildOptions: --enable-alpha-plugins --enable-exec
+            rbac:
+              policy.default: ""
+              policy.csv: |
+                # ci: the merge-request checks (token: argocd account generate-token --account ci)
+                p, role:ci, applications, get, */*, allow
+                p, role:ci, applications, create, */*, allow
+                p, role:ci, applications, update, */*, allow
+                p, role:ci, applications, delete, */*, allow
+                p, role:ci, applicationsets, get, */*, allow
+                p, role:ci, applicationsets, create, */*, allow
+                p, role:ci, projects, get, *, allow
+                p, role:ci, clusters, get, *, allow
+                p, role:ci, repositories, get, *, allow
+                g, ci, role:ci
+            ssh:
+              extraHosts: |
+                [forgejo.example.org]:2222 ssh-rsa AAAA-replace-with-the-public-key
+            # The clusters destinations and cluster generators resolve against:
+            # same names and labels as in .gitops-check.yaml. The in-cluster
+            # server with no credentials: the server's own service account.
+            clusterCredentials:
+              lab:
+                server: https://kubernetes.default.svc
+                labels:
+                  env: lab
+                  site: example.org
+                annotations:
+                  ingressDomain: apps.lab.example.org
+                config:
+                  tlsClientConfig:
+                    insecure: false
+          repoServer:
+            initContainers:
+              - name: install-yq      # used by the ksops stand-in
+                image: docker.io/mikefarah/yq:4.53.6
+                command: [cp, /usr/bin/yq, /custom-tools/yq]
+                volumeMounts:
+                  - name: custom-tools
+                    mountPath: /custom-tools
+            volumes:
+              - name: custom-tools
+                emptyDir: {}
+              - name: ksops-stub
+                configMap:
+                  name: ksops-stub
+                  defaultMode: 0755
+            volumeMounts:
+              - name: custom-tools
+                mountPath: /usr/local/bin/yq
+                subPath: yq
+              - name: ksops-stub
+                mountPath: /usr/local/bin/ksops
+                subPath: ksops
+    - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+      targetRevision: main
+      path: clusters/lab/argocd-preview   # ksops stand-in, repository credentials
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd-preview
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

@@ -1,0 +1,68 @@
+{{- with .Values.forgejo }}
+# Forgejo settings of {{ $.Values.repository }} (repository ID {{ .repositoryId }}), through
+# Crossplane (provider-forgejo): a change made in Forgejo is undone. Never
+# deleted by Crossplane (no Delete): removing one here leaves it in Forgejo.
+# pac-bot reports the pipelines' results.
+apiVersion: repository.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: Collaborator
+metadata:
+  name: pac-bot
+  namespace: {{ $.Values.namespace }}
+  {{- with (.collaborator | default dict).externalName }}
+  annotations:
+    crossplane.io/external-name: {{ . | quote }}
+  {{- end }}
+spec:
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    repositoryId: {{ .repositoryId }}
+    user: pac-bot
+    permission: write
+---
+# Pipelines-as-Code's webhook. Its config (url, content_type, secret) comes
+# from Secret forgejo-webhook: the secret is forgejo-pac's webhook.secret.
+# No branchFilter: Forgejo's "*" reads back as empty, and empty means every
+# branch. LateInitialize: a new webhook's ID is Forgejo's.
+apiVersion: repository.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: Webhook
+metadata:
+  name: pipelines-as-code
+  namespace: {{ $.Values.namespace }}
+  {{- with (.webhook | default dict).externalName }}
+  annotations:
+    crossplane.io/external-name: {{ . | quote }}
+  {{- end }}
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    repositoryId: {{ .repositoryId }}
+    type: forgejo
+    active: true
+    # As Forgejo stores them (it expands pull_request).
+    events: [push, issue_comment, pull_request, pull_request_assign, pull_request_label, pull_request_milestone, pull_request_comment, pull_request_review_approved, pull_request_review_rejected, pull_request_review_comment, pull_request_sync, pull_request_review_request]
+    configSecretRef: {name: forgejo-webhook}
+{{- range .deployKeys }}
+---
+# Deploy key {{ .title }}. As Forgejo stores it, comment included: a deploy key
+# can't be changed, only replaced.
+apiVersion: repository.forgejo.m.crossplane.brobald.be/v1alpha1
+kind: DeployKey
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Values.namespace }}
+  {{- with .externalName }}
+  annotations:
+    crossplane.io/external-name: {{ . | quote }}
+  {{- end }}
+spec:
+  managementPolicies: [Observe, Create, Update, LateInitialize]
+  providerConfigRef: {kind: ClusterProviderConfig, name: default}
+  forProvider:
+    repositoryId: {{ $.Values.forgejo.repositoryId }}
+    title: {{ .title }}
+    readOnly: {{ .readOnly }}
+    key: {{ .key | quote }}
+{{- end }}
+{{- end }}

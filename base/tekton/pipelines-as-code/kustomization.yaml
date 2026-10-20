@@ -1,0 +1,54 @@
+# Pipelines-as-Code release plus this site's settings, shared by the clusters
+# (their overlay: clusters/<name>/tekton/pipelines-as-code adds the webhook
+# route and the controller URL; the repositories it serves come with
+# clusters/<name>/ci and base/team). The release is kept in Git unchanged:
+#   release.k8s.yaml: https://github.com/tektoncd/pipelines-as-code/releases/download/v0.52.0/release.k8s.yaml
+#   sha256 011c4edd19423913f83829d32cb910c6c45f6d6e2f3ae9788709755d96062530
+#   (the digest GitHub lists for the release asset)
+# To upgrade: docs/how-to/upgrade-tekton.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - release.k8s.yaml
+
+patches:
+  # PaC calls Forgejo's API over HTTPS: trust the site CA (ConfigMap
+  # site-root-ca, trust-manager: docs/explanation/site-ca.md) in addition to the image's
+  # bundle (Go reads SSL_CERT_DIR).
+  - patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: pipelines-as-code-controller, namespace: pipelines-as-code}
+      spec:
+        template:
+          spec:
+            volumes:
+              - {name: site-root-ca, configMap: {name: site-root-ca}}
+            containers:
+              - name: pac-controller
+                env:
+                  - {name: SSL_CERT_DIR, value: /etc/site-ca}
+                volumeMounts:
+                  - {name: site-root-ca, mountPath: /etc/site-ca, readOnly: true}
+  - patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: pipelines-as-code-watcher, namespace: pipelines-as-code}
+      spec:
+        template:
+          spec:
+            volumes:
+              - {name: site-root-ca, configMap: {name: site-root-ca}}
+            containers:
+              - name: pac-watcher
+                env:
+                  - {name: SSL_CERT_DIR, value: /etc/site-ca}
+                volumeMounts:
+                  - {name: site-root-ca, mountPath: /etc/site-ca, readOnly: true}
+  # Forgejo's host may serve the provider API given in Repository objects.
+  - patch: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata: {name: pipelines-as-code, namespace: pipelines-as-code}
+      data:
+        trusted-provider-hostnames: forgejo.example.org

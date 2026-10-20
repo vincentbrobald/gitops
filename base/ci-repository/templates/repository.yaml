@@ -1,0 +1,31 @@
+# Where the pipelines of {{ .Values.repository }} run.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
+  labels:
+    example.org/ci-repository: {{ .Values.name }}
+---
+# Pipelines-as-Code runs .tekton/ of the repository here; Secret forgejo-pac
+# holds pac-bot's token and the webhook's secret.
+apiVersion: pipelinesascode.tekton.dev/v1alpha1
+kind: Repository
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  url: {{ .Values.forgejoURL }}/{{ .Values.repository }}
+  git_provider:
+    type: forgejo
+    url: {{ .Values.forgejoURL }}
+    secret: {name: forgejo-pac, key: provider.token}
+    webhook_secret: {name: forgejo-pac, key: webhook.secret}
+  {{- with .Values.tektonDashboard }}
+  # Status links go to this Tekton Dashboard (PaC's custom-console-*).
+  params:
+    - {name: tekton_dashboard, value: {{ . }}}
+  {{- end }}
+  {{- with .Values.pipelinesAsCode.settings }}
+  settings:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}

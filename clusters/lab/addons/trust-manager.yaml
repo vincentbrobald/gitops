@@ -1,0 +1,37 @@
+# trust-manager (cert-manager project): publishes the site's root CA as
+# ConfigMap site-root-ca (key site-root-ca.crt) from one source, the file
+# base/site-ca/site-root-ca.crt; the Bundle and its source: clusters/lab/trust
+# (docs/explanation/site-ca.md).
+# Hand-written: deploy-talos.py leaves this file alone.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: trust-manager
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: platform-infra
+  sources:
+    - repoURL: https://charts.jetstack.io
+      chart: trust-manager
+      targetRevision: v0.25.0
+      helm:
+        releaseName: trust-manager
+        valuesObject:
+          # Bundles read their sources in cert-manager's namespace.
+          app: {trust: {namespace: cert-manager}}
+          # No default CA package (useDefaultCAs): the site CA only, as the
+          # consumers add it to their image's bundle themselves.
+          defaultPackage: {enabled: false}
+    - repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+      targetRevision: main
+      path: clusters/lab/trust
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    # The Bundle's kind comes with the chart: retry until it exists.
+    syncOptions: [ServerSideApply=true, SkipDryRunOnMissingResource=true]
+    retry: {limit: 10, backoff: {duration: 10s, factor: 2, maxDuration: 3m}}

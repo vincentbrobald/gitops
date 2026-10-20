@@ -1,0 +1,50 @@
+# provider-forgejo (alice/provider-forgejo, package providers/forgejo):
+# Forgejo repositories and their settings (deploy keys, webhooks,
+# collaborators, branch protection), organizations, teams, users and their
+# tokens as managed resources, kinds in *.forgejo.m.crossplane.brobald.be.
+# Our own provider, generated with Upjet from the Forgejo Terraform provider,
+# whose code is compiled in (no Terraform at runtime); built and pushed by its
+# pipeline.
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: forgejo
+spec:
+  package: registry.example.org/providers/forgejo:v0.7.0-236f815
+  runtimeConfigRef:
+    name: provider-forgejo
+---
+# Trusts the site CA (Forgejo's certificate) besides the public ones.
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: provider-forgejo
+spec:
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        spec:
+          containers:
+            - name: package-runtime
+              env:
+                - {name: SSL_CERT_DIR, value: /etc/site-ca}
+              volumeMounts:
+                - {name: site-ca, mountPath: /etc/site-ca, readOnly: true}
+          volumes:
+            - name: site-ca
+              configMap: {name: site-root-ca}
+---
+# Used by every Forgejo managed resource that names no other: the token of
+# the Forgejo user crossplane-lab (Ansible, infra forgejo.yml).
+apiVersion: forgejo.m.crossplane.brobald.be/v1beta1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: forgejo-credentials
+      key: credentials

@@ -1,0 +1,13 @@
+# Team "bobteam" of organization example: the directory name is the team's name
+# (docs/reference/team-files.md). Makes the Keycloak group team-bobteam, the Forgejo team bobteam,
+# its repositories, the namespace team-bobteam and the team's Argo CD
+# (https://argocd-bobteam.apps.<cluster>.example.org). The directories next to
+# this file are the team's application namespaces (docs/reference/team-namespaces.md).
+description: Team bobteam
+# Keycloak user names; the same names in Forgejo.
+members:
+  - alice
+# Repositories besides bobteam-gitops (always made: its apps/ is what the team's
+# Argo CD syncs). Names start with "bobteam-"; each is the team's, private, and
+# readable by its Argo CD.
+repositories: []

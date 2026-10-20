@@ -1,0 +1,26 @@
+# Crossplane's providers on cluster lab, and how they reach what they manage.
+#
+# provider-keycloak: Keycloak (https://oauth.example.org) through the
+# service account crossplane-lab of realm master (Ansible, infra
+# roles/keycloak_realm), which may only manage the clients of realm
+# example (observing a confidential client reads its secret, which takes
+# manage-clients); what it does is set per resource (managementPolicies).
+# provider-forgejo: Forgejo (https://forgejo.example.org) as the user
+# crossplane-lab (Ansible, infra forgejo.yml), admin collaborator of the
+# repositories it manages.
+# provider-harbor: Harbor (registry VM, infra role harbor) as its admin user.
+# provider-artifact-keeper: Artifact Keeper (artifacts VM, infra role
+# artifact_keeper) with an admin API token (crossplane-lab).
+# Managed resources stay with what they belong to (e.g. the client tekton-lab
+# in clusters/lab/tekton/dashboard) and use the ClusterProviderConfig
+# "default" here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - provider-keycloak.yaml
+  - forgejo.yaml
+  - provider-harbor.yaml
+  - artifact-keeper.yaml
+  - activation.yaml               # the kinds the providers install (ManagedResourceActivationPolicy)
+generators:
+  - secret-generator.yaml

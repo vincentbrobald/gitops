@@ -1,0 +1,23 @@
+# Namespace cleanup, shared by the clusters: a CronJob deleting namespaces
+# whose owning Argo CD Applications are gone, once Crossplane has finished
+# with what was in them (cleanup.py's docstring has the contract). Argo CD
+# alone can't: deleting a namespace together with Crossplane's objects in it
+# leaves them unable to delete their external objects, and the namespace
+# stuck Terminating. Owners opt in per namespace:
+#
+#   metadata:
+#     labels:
+#       cleanup.example.org/when-orphaned: "true"
+#     annotations:
+#       cleanup.example.org/applications: example.org/team=<team>   # a label selector over Applications
+#       argocd.argoproj.io/sync-options: Delete=false                  # Argo CD keeps the namespace
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - cronjob.yaml
+configMapGenerator:
+  - name: namespace-cleanup
+    namespace: namespace-cleanup
+    files: [cleanup.py]

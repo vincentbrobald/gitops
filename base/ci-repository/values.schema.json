@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "base/ci-repository: one platform CI repository (clusters/<cluster>/ci/<name>/repository.yaml)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "repository",
+    "namespace"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z]([a-z0-9-]{0,48}[a-z0-9])?$",
+      "description": "the folder's name"
+    },
+    "repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z]([a-z0-9-]{0,48}[a-z0-9])?$"
+    },
+    "forgejoURL": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tektonDashboard": {
+      "type": "string"
+    },
+    "pipelinesAsCode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "settings": {
+          "type": "object"
+        }
+      }
+    },
+    "forgejo": {
+      "anyOf": [
+        {
+          "type": "object",
+          "maxProperties": 0
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repositoryId"
+          ],
+          "properties": {
+            "repositoryId": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "collaborator": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "externalName": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "webhook": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "externalName": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "deployKeys": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "title",
+                  "key"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "readOnly": {
+                    "type": "boolean"
+                  },
+                  "key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "externalName": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "harbor": {
+      "anyOf": [
+        {
+          "type": "object",
+          "maxProperties": 0
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "project",
+            "robot"
+          ],
+          "properties": {
+            "project": {
+              "type": "string",
+              "minLength": 1
+            },
+            "robot": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    }
+  }
+}

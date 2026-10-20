@@ -1,0 +1,36 @@
+# Which managed-resource kinds the providers install (their CRDs): only those
+# the gitops repository uses. Each provider ships a ManagedResourceDefinition
+# per kind; Crossplane creates the CRD and runs the controller of an MRD only
+# once a policy activates it (the providers support safe-start). The
+# Crossplane chart's own default policy is off (addons/crossplane.yaml,
+# provider.defaultActivations: []).
+#
+# A new kind: add it here first (its MRD name: <plural>.<group>). An MRD
+# can't be deactivated: removing a kind from this list leaves its CRD. To
+# remove it once no object of the kind exists: delete the MRD (the package
+# manager makes it again, Inactive, at its next reconcile of the provider
+# revision), then delete the CRD (the revision owns it; it stays gone while
+# the MRD is Inactive).
+apiVersion: apiextensions.crossplane.io/v1alpha1
+kind: ManagedResourceActivationPolicy
+metadata:
+  name: lab
+spec:
+  activate:
+    # provider-keycloak: the teams' groups and members, OIDC clients and their
+    # groups claim.
+    - groups.group.keycloak.m.crossplane.io
+    - memberships.group.keycloak.m.crossplane.io
+    - clients.openidclient.keycloak.m.crossplane.io
+    - groupmembershipprotocolmappers.openidgroup.keycloak.m.crossplane.io
+    # provider-upjet-harbor: projects, proxy-cache registries, the login,
+    # project members, robot accounts.
+    - projects.harbor.m.crossplane.io
+    - registries.harbor.m.crossplane.io
+    - auths.config.harbor.m.crossplane.io
+    - membergroups.project.harbor.m.crossplane.io
+    - accounts.robot.harbor.m.crossplane.io
+    # provider-forgejo (ours): every namespaced kind.
+    - "*.forgejo.m.crossplane.brobald.be"
+    # provider-artifact-keeper (ours): every kind.
+    - "*.artifactkeeper.crossplane.brobald.be"

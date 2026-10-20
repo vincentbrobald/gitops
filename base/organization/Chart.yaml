@@ -1,0 +1,10 @@
+# A Forgejo organization of the site (applications/<org>/organization.yaml),
+# rendered once per organization by the ApplicationSet team-organizations
+# (clusters/<cluster>/addons/teams.yaml) into namespace org-<org>: the
+# organization (Crossplane, provider-forgejo, as user crossplane-lab, which
+# becomes its owner) and its human owners. Its teams are the directories
+# next to organization.yaml.
+apiVersion: v2
+name: organization
+version: 0.1.0
+type: application

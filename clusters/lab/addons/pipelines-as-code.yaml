@@ -1,0 +1,26 @@
+# Pipelines-as-Code (Forgejo webhooks -> PipelineRuns from .tekton/), its
+# configuration for this site, and the repositories it serves
+# (tekton/pipelines-as-code). Needs Tekton Pipelines' CRDs: until they exist,
+# syncs are retried. Hand-written: deploy-talos.py leaves this file alone.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pipelines-as-code
+  namespace: argocd
+  annotations:
+    # Compare with what the API server would store (its defaults and the
+    # fields Tekton's controllers fill in are not differences).
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: platform-infra
+  source:
+    repoURL: ssh://git@forgejo.example.org:2222/alice/gitops.git
+    targetRevision: main
+    path: clusters/lab/tekton/pipelines-as-code
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: pipelines-as-code
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [ServerSideApply=true, SkipDryRunOnMissingResource=true]
+    retry: {limit: 10, backoff: {duration: 10s, factor: 2, maxDuration: 3m}}

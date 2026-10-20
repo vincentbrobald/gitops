@@ -1,0 +1,15 @@
+# A team of the site (gitops applications/<org>/<team>/team.yaml), rendered once per team
+# by the ApplicationSet team-platform (clusters/<cluster>/addons/teams.yaml):
+# its namespace team-<team>, Keycloak group team-<team> and members, Forgejo
+# team <team> in its organization and members, the team's repositories
+# (<org>/<team>-gitops and those team.yaml lists) and the root Application of
+# its Argo CD, the
+# Keycloak client of the team's Argo CD (the Argo CD itself: ApplicationSet team-argocd, values
+# in argocd-values.yaml), its Harbor project, and its CI (namespace ci-<team>,
+# Forgejo user ci-<team>, Pipelines-as-Code: templates/ci.yaml). The Crossplane
+# objects live in team-<team>, the CI's token and robot in ci-<team>. The
+# site CA (ConfigMap site-root-ca) comes from trust-manager (docs/explanation/site-ca.md).
+apiVersion: v2
+name: team
+version: 0.1.0
+type: application

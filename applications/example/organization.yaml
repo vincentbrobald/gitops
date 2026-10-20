@@ -1,0 +1,14 @@
+# The Forgejo organization example (https://forgejo.example.org/example):
+# its teams are the directories next to this file (docs/reference/team-files.md). Rendered
+# by base/organization into namespace org-example.
+forgejo:
+  fullName: example.org
+  description: The site's organization, aligned with the Keycloak realm example
+  visibility: limited      # visible to signed-in users; a repository in it may still be public
+# Its users are those of this Keycloak realm: the teams' groups team-<team>
+# are made there, and the teams' Argo CDs log in through it.
+keycloak:
+  realm: example
+# Owners (Forgejo team Owners): the platform admins (Keycloak group
+# k8s-admins) who have a Forgejo account.
+owners: [alice]
