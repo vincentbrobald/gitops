@@ -16,8 +16,6 @@ import os
 import sys
 from pathlib import Path
 
-# The checkout to work on: this script's own, or GITOPS_ROOT (the merge
-# check runs main's scripts on a pull request's files).
 ROOT = Path(os.environ.get("GITOPS_ROOT") or Path(__file__).resolve().parent.parent).resolve()
 OWNED = ("addons/generated", "generated")
 

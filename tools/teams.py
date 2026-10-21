@@ -69,8 +69,6 @@ from pathlib import Path
 
 import yaml
 
-# The checkout to work on: this script's own, or GITOPS_ROOT (the merge
-# check runs main's scripts on a pull request's files).
 ROOT = Path(os.environ.get("GITOPS_ROOT") or Path(__file__).resolve().parent.parent).resolve()
 APPS = ROOT / "applications"
 ORG = re.compile(r"^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$")
@@ -78,7 +76,7 @@ TEAM = re.compile(r"^[a-z]([a-z0-9-]{0,18}[a-z0-9])?$")
 NS = re.compile(r"^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$")
 ENV = re.compile(r"^[a-z][a-z0-9]{0,7}$")
 REPO = re.compile(r"^[a-z0-9]([a-z0-9._-]{0,98}[a-z0-9])?$")
-RESERVED = {"argocd"}          # team subdirectories that are not namespaces
+RESERVED = {"argocd"}
 # Harbor projects of the platform (clusters/<cluster>/harbor): a team's
 # project is named after it, so no team may take these names.
 RESERVED_TEAMS = {"library", "providers", "gitops-scanner", "pac-demo"}
@@ -145,7 +143,7 @@ class Team:
     def __init__(self, org: str, name: str, repos: list[str]):
         self.org, self.name, self.repos = org, name, repos
         self.namespaces: list[str] = []
-        self.removed = False      # step 1 of its removal (removed: true in team.yaml)
+        self.removed = False
 
     @property
     def dir(self) -> Path:
@@ -167,7 +165,6 @@ def scan() -> tuple[list[Team], list[str]]:
         if not ORG.match(od.name):
             errors.append(f"{rel}: an organization name is a lower-case DNS label of at most 30 characters")
             continue
-        # Its content is validated by the chart (base/organization/values.schema.json).
         if not (od / "organization.yaml").is_file():
             errors.append(f"{rel}: no organization.yaml")
         for f in sorted(p for p in od.iterdir() if p.is_file() and p.name != "organization.yaml"):
@@ -187,8 +184,6 @@ def scan() -> tuple[list[Team], list[str]]:
             if not (td / "team.yaml").is_file():
                 errors.append(f"{trel}: no team.yaml")
                 continue
-            # Its keys and values are validated by the chart (base/team/values.schema.json);
-            # the repositories are read here for their deploy keys.
             t = load(td / "team.yaml", errors)
             if t is None:
                 continue
@@ -210,8 +205,6 @@ def scan() -> tuple[list[Team], list[str]]:
                 if not NS.match(nd.name):
                     errors.append(f"{nrel}: a namespace name is a lower-case DNS label of at most 30 characters")
                     continue
-                # <ns>/base/: what every environment shares; <ns>/env/<env>/:
-                # an environment, an overlay of ../../base.
                 base = nd / "base"
                 if not (base / "kustomization.yaml").is_file():
                     errors.append(f"{nrel}: no base/kustomization.yaml (the namespace's base)")
@@ -235,7 +228,6 @@ def scan() -> tuple[list[Team], list[str]]:
                         errors.append(f"{erel}/kustomization.yaml: missing, or not an overlay of the base "
                                       "(kind: Kustomization, resources: [../../base, ...])")
                     team.namespaces.append(ns)
-                    # Listeners of the environment, and of the base (in every environment).
                     for f in sorted(ed.rglob("*.y*ml")) + sorted(base.rglob("*.y*ml")):
                         for d in yaml_docs(f):
                             if d.get("kind") != "ListenerSet":
@@ -253,8 +245,6 @@ def scan() -> tuple[list[Team], list[str]]:
 
 
 def cluster() -> str:
-    """The one cluster with teams (its addons/teams.yaml): the generated
-    Secrets are encrypted for it."""
     cs = sorted(c.name for c in (ROOT / "clusters").iterdir() if (c / "addons" / "teams.yaml").is_file())
     if len(cs) != 1:
         raise SystemExit(f"teams on {len(cs)} clusters ({cs}): applications/ is encrypted for one cluster")
@@ -266,7 +256,6 @@ def creds_prefix(t: Team) -> str:
 
 
 def static_files(t: Team, c: str, pub: str) -> dict[str, str]:
-    """applications/<org>/<team>/argocd/ but the encrypted Secret."""
     keys = "".join(f"""---
 apiVersion: repository.forgejo.m.crossplane.brobald.be/v1alpha1
 kind: DeployKey
@@ -426,8 +415,6 @@ def sync(teams: list[Team], write: bool, errors: list[str]) -> None:
     for t in teams:
         d = t.dir / "argocd"
         if t.removed:
-            # Its Applications are gone: nothing reads argocd/ any more (its
-            # namespaces stay in tenants.yaml until the folder goes).
             if d.is_dir():
                 if write:
                     shutil.rmtree(d)
@@ -467,8 +454,6 @@ def sync(teams: list[Team], write: bool, errors: list[str]) -> None:
 
 
 def tenants_project(teams: list[Team]) -> str:
-    """The AppProject tenants: the namespaces of the tree, the kinds above."""
-    # Every organization, with teams or not (scan() requires organization.yaml).
     orgs = {f"org-{o.name}" for o in APPS.iterdir() if (o / "organization.yaml").is_file()} if APPS.is_dir() else set()
     nss = sorted(orgs | {f"team-{t.name}" for t in teams}
                  | {f"ci-{t.name}" for t in teams} | {n for t in teams for n in t.namespaces})
@@ -506,9 +491,6 @@ def sync_project(teams: list[Team], c: str, write: bool, errors: list[str]) -> N
 
 
 def check_host_key(c: str, errors: list[str]) -> None:
-    """The teams' Argo CDs know Forgejo's SSH host key from
-    base/team/argocd-values.yaml: it must be the platform Argo CD's (written
-    by deploy-talos.py into clusters/<cluster>/addons/generated/argocd.yaml)."""
     def hosts(p: Path) -> set[str]:
         lines = re.findall(r"^\s+(\[[^\]]+\]:\d+ ssh-\S+ \S+)", p.read_text(), re.M) if p.is_file() else []
         return set(lines)
@@ -524,10 +506,6 @@ def check_host_key(c: str, errors: list[str]) -> None:
 
 
 def check_removals(teams: list[Team], errors: list[str]) -> None:
-    """A team folder may only disappear after its team.yaml said removed: true
-    on the target branch: removing the folder at once also takes its
-    namespaces out of the tenants project, and Argo CD then drops the team's
-    Applications without deleting what they made."""
     base = os.environ.get("GITOPS_BASE", "origin/main")
     def git(*args: str) -> subprocess.CompletedProcess:
         return subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)

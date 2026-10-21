@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Generate the diagrams of this repository's documentation (docs/*.svg).
 
-Usage: docs/diagrams.py [docs directory]
-Standard library only; edit the layout functions and re-run. The drawing
-helpers are talos-install's (docs/diagrams.py there)."""
+Usage: docs/diagrams.py [docs directory]"""
 import sys
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -90,8 +88,6 @@ class Svg:
         Path(path).write_text("\n".join(self.parts) + "\n")
 
 
-
-# ----------------------------------------------------------------- flow ----
 def flow(out):
     s = Svg(900, 660, "gitops: from a pull request to the cluster",
             "A pull request is checked by rendering before it merges; each cluster's Argo CD applies main; "
@@ -128,7 +124,6 @@ def flow(out):
     s.save(out)
 
 
-# -------------------------------------------------------------- tenancy ----
 def tenancy(out):
     s = Svg(900, 610, "gitops: a team's bounds",
             "The platform decides where a team may deploy, from applications/; the team decides what, "

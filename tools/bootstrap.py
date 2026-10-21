@@ -58,8 +58,6 @@ def secret(namespace: str, name: str, data: dict[str, str], labels: dict[str, st
 
 
 def wanted(a: argparse.Namespace) -> dict[str, dict | None]:
-    """Each Secret's file (relative to the cluster's folder) and its content;
-    None when its source isn't given (skipped)."""
     s = a.secrets_dir
     keycloak = a.keycloak_url or f"https://oauth.{a.domain}"
     forgejo = a.forgejo_url or f"https://forgejo.{a.domain}"
@@ -81,7 +79,6 @@ def wanted(a: argparse.Namespace) -> dict[str, dict | None]:
             "crossplane-system", "artifact-keeper-credentials",
             {"url": artifacts, "token": read(s / "artifacts/crossplane-lab-token")}),
         "argocd-preview/secret-argocd-preview-creds-forgejo.enc.yaml": None,
-        # Not compared by `check`: random by nature.
         "tekton/dashboard/secret-tekton-dashboard-oauth2-proxy.enc.yaml": secret(
             "tekton-dashboard", "oauth2-proxy", {"cookie-secret": secrets.token_hex(16)}),
     }
@@ -108,12 +105,12 @@ def data_of(doc: dict) -> dict[str, str]:
 
 
 def same(rel: str, have: dict[str, str], want: dict[str, str]) -> bool:
-    if rel.endswith("oauth2-proxy.enc.yaml"):                 # random: only its shape
+    if rel.endswith("oauth2-proxy.enc.yaml"):
         return set(have) == set(want) and len(have["cookie-secret"]) in (16, 24, 32)
-    if rel.endswith("creds-forgejo.enc.yaml"):                # the same key, whatever its trailing newline
+    if rel.endswith("creds-forgejo.enc.yaml"):
         have, want = dict(have), dict(want)
         have["sshPrivateKey"], want["sshPrivateKey"] = have["sshPrivateKey"].strip(), want["sshPrivateKey"].strip()
-    if rel.endswith("harbor-credentials.enc.yaml"):           # the same JSON, whatever its spacing
+    if rel.endswith("harbor-credentials.enc.yaml"):
         have, want = dict(have), dict(want)
         have["credentials"], want["credentials"] = json.loads(have["credentials"]), json.loads(want["credentials"])
     return have == want

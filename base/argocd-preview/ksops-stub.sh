@@ -1,6 +1,4 @@
 #!/bin/bash
-# ksops stand-in for the render-only Argo CD (argocd-preview): never decrypts.
-#
 # Same interface as ksops (a kustomize exec KRM function): reads a
 # ResourceList whose functionConfig is the ksops generator, and returns the
 # Secrets of the files it lists. Each value is replaced by a fingerprint of
@@ -13,7 +11,7 @@
 set -euo pipefail
 YQ=${YQ:-/usr/local/bin/yq}
 
-redact() {  # redact <file>: the Secret, values replaced, sops metadata dropped
+redact() {
     local file=$1 doc field key fp fps=""
     doc=$("$YQ" 'del(.sops)' "$file")
     for field in data stringData; do

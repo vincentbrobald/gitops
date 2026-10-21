@@ -19,8 +19,7 @@ Owners mark their namespaces argocd.argoproj.io/sync-options: Delete=false,
 so that Argo CD deletes everything in them but not the namespaces.
 
 Environment: ARGOCD_NAMESPACE (argocd), GRACE_SECONDS (600), DRY_RUN (false).
-Standard library only; the pod's service account calls the API server. A
-busy or restarting API server (429, 5xx, no connection) is retried a few
+A busy or restarting API server (429, 5xx, no connection) is retried a few
 times, honouring Retry-After; then the run fails and the next one starts over.
 """
 import json
@@ -46,7 +45,7 @@ TOKEN = open(f"{SA}/token").read().strip()
 
 
 RETRY_CODES = {429, 500, 502, 503, 504}
-ATTEMPTS = 5            # waits 1, 2, 4, 8 s (or Retry-After, at most 30 s): within the Job's deadline
+ATTEMPTS = 5
 
 
 def call(method: str, path: str, body: dict | None = None, ctype: str = "application/json") -> dict:
@@ -77,7 +76,6 @@ def log(ns: str, msg: str) -> None:
 
 
 def managed_kinds() -> list[tuple[str, str, str]]:
-    """(group, version, plural) of every namespaced managed-resource kind."""
     kinds = []
     for crd in call("GET", "/apis/apiextensions.k8s.io/v1/customresourcedefinitions")["items"]:
         spec = crd["spec"]
@@ -93,7 +91,7 @@ def remaining(ns: str, kinds: list[tuple[str, str, str]]) -> list[str]:
         try:
             items = call("GET", f"/apis/{group}/{version}/namespaces/{ns}/{plural}?limit=50")["items"]
         except urllib.error.HTTPError as e:
-            if e.code == 404:      # the kind went away meanwhile
+            if e.code == 404:
                 continue
             raise
         left += [f"{plural}.{group}/{i['metadata']['name']}" for i in items]
