@@ -18,9 +18,12 @@ deleted when, in this order:
 Owners mark their namespaces argocd.argoproj.io/sync-options: Delete=false,
 so that Argo CD deletes everything in them but not the namespaces.
 
-Environment: ARGOCD_NAMESPACE (argocd), GRACE_SECONDS (600), DRY_RUN (false).
-A busy or restarting API server (429, 5xx, no connection) is retried a few
-times, honouring Retry-After; then the run fails and the next one starts over.
+Environment: ARGOCD_NAMESPACE (argocd), GRACE_SECONDS (600), DRY_RUN (false),
+RUN_SECONDS (200). A busy or restarting API server (429, 5xx, no connection)
+is retried a few times, honouring Retry-After, within RUN_SECONDS for the
+whole run; then the run fails and the next one starts over. RUN_SECONDS stays
+below the Job's activeDeadlineSeconds, so that a run ends with its own error
+rather than being killed.
 """
 import json
 import os
@@ -39,6 +42,7 @@ SINCE = "cleanup.example.org/orphaned-since"
 ARGOCD_NAMESPACE = os.environ.get("ARGOCD_NAMESPACE", "argocd")
 GRACE = int(os.environ.get("GRACE_SECONDS", "600"))
 DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
+DEADLINE = time.monotonic() + int(os.environ.get("RUN_SECONDS", "200"))
 
 CTX = ssl.create_default_context(cafile=f"{SA}/ca.crt")
 TOKEN = open(f"{SA}/token").read().strip()
@@ -54,18 +58,18 @@ def call(method: str, path: str, body: dict | None = None, ctype: str = "applica
         req = urllib.request.Request(API + path, method=method, data=data,
                                      headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": ctype})
         try:
-            with urllib.request.urlopen(req, context=CTX, timeout=30) as r:
+            with urllib.request.urlopen(req, context=CTX, timeout=max(1, min(30, DEADLINE - time.monotonic()))) as r:
                 return json.loads(r.read() or b"{}")
         except urllib.error.HTTPError as e:
-            if e.code not in RETRY_CODES or attempt == ATTEMPTS - 1:
-                raise
             after = e.headers.get("Retry-After", "")
             wait = min(int(after), 30) if after.isdigit() else 2 ** attempt
+            if e.code not in RETRY_CODES or attempt == ATTEMPTS - 1 or time.monotonic() + wait >= DEADLINE:
+                raise
             print(f"{method} {path}: HTTP {e.code}, retrying in {wait}s", flush=True)
         except (urllib.error.URLError, TimeoutError) as e:
-            if attempt == ATTEMPTS - 1:
-                raise
             wait = 2 ** attempt
+            if attempt == ATTEMPTS - 1 or time.monotonic() + wait >= DEADLINE:
+                raise
             print(f"{method} {path}: {e}, retrying in {wait}s", flush=True)
         time.sleep(wait)
     raise AssertionError("unreachable")

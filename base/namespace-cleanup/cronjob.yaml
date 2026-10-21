@@ -31,6 +31,7 @@ spec:
                 - {name: ARGOCD_NAMESPACE, value: argocd}
                 - {name: GRACE_SECONDS, value: "600"}
                 - {name: DRY_RUN, value: "false"}
+                - {name: RUN_SECONDS, value: "200"}   # below activeDeadlineSeconds
               resources:
                 requests: {cpu: 10m, memory: 32Mi}
                 limits: {memory: 128Mi}
