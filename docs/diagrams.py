@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from xml.sax.saxutils import escape
 
+# Palette: a fill colour per box kind, and its border colour under the same
+# key with a "b" suffix (Svg.box and Svg.legend rely on that pairing).
 C = {
     "bg": "#ffffff", "ink": "#1f2933", "muted": "#52606d", "line": "#7b8794",
     "host": "#f5f7fa", "hostb": "#9aa5b1",
@@ -17,11 +19,19 @@ C = {
     "ext": "#eef0f2", "extb": "#7b8794",
     "tool": "#ffffff", "toolb": "#52606d",
 }
+# Font stack set once on the root <svg>, inherited by every <text>.
 FONT = "font-family=\"-apple-system,'Segoe UI',Helvetica,Arial,sans-serif\""
 
 
 class Svg:
+    """An SVG document built as a list of element strings, written by save().
+
+    Coordinates are in pixels from the top left; text is XML-escaped.
+    """
+
     def __init__(self, w, h, title, desc):
+        """Start a w x h drawing with an accessible title and description,
+        the arrowhead marker "a" and a background rectangle."""
         self.w, self.h = w, h
         self.parts = [
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" '
@@ -34,12 +44,21 @@ class Svg:
         ]
 
     def box(self, x, y, w, h, kind, lines=(), title=None, dashed=False, rx=8, align="middle", size=13):
+        """Draw a rounded box in the colours of kind (a key of C).
+
+        title, if given, goes bold in the top left corner in the border colour.
+        lines are centred vertically as a block; the first is the heading (bold
+        when there is no title, ink colour, full size), the others are smaller
+        and muted. align is "middle" (centred) or "start" (12px from the left).
+        """
         dash = ' stroke-dasharray="6 4"' if dashed else ""
         self.parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{C[kind]}" '
                           f'stroke="{C[kind + "b"]}" stroke-width="1.5"{dash}/>')
         if title:
             self.text(x + 12, y + 20, title, bold=True, anchor="start", color=C[kind + "b"])
         if lines:
+            # Line height size + 4; the block's centre sits on the box's centre,
+            # +0.35 em to move from the baseline to the visual middle of a line.
             n = len(lines)
             lh = size + 4
             top = y + h / 2 - (n - 1) * lh / 2 + size * 0.35
@@ -50,12 +69,17 @@ class Svg:
                           color=C["ink"] if i == 0 else C["muted"])
 
     def text(self, x, y, s, bold=False, anchor="start", size=13, color=None, italic=False):
+        """Add text s with its baseline at y; anchor is an SVG text-anchor (start, middle, end)."""
         self.parts.append(f'<text x="{x}" y="{y:.1f}" text-anchor="{anchor}" font-size="{size}" '
                           f'fill="{color or C["ink"]}"{" font-weight=\"600\"" if bold else ""}'
                           f'{" font-style=\"italic\"" if italic else ""}>{escape(s)}</text>')
 
     def line(self, pts, arrow_end=True, arrow_start=False, dashed=False, color=None, label=None, lx=None, ly=None,
              anchor="middle"):
+        """Draw a polyline through pts ((x, y) pairs), with arrowheads at either end.
+
+        label, if given, is drawn at (lx, ly) with label().
+        """
         d = " ".join(f"{'M' if i == 0 else 'L'}{x},{y}" for i, (x, y) in enumerate(pts))
         attrs = ""
         if arrow_end:
@@ -69,6 +93,10 @@ class Svg:
             self.label(lx, ly, label, anchor)
 
     def label(self, x, y, s, anchor="middle", size=12):
+        """Draw small muted text s at (x, y) on a nearly opaque background patch,
+        so that it stays readable over the lines it crosses."""
+        # The patch's width is estimated from the character count (about
+        # 0.56 em per character) plus 5px padding on each side.
         w = len(s) * size * 0.56 + 10
         x0 = {"middle": x - w / 2, "start": x - 5, "end": x - w + 5}[anchor]
         self.parts.append(f'<rect x="{x0:.1f}" y="{y - size - 1}" width="{w:.1f}" height="{size + 7}" rx="3" '
@@ -76,6 +104,11 @@ class Svg:
         self.text(x, y + 1, s, anchor=anchor, size=size, color=C["muted"])
 
     def legend(self, x, y, items):
+        """Draw a row of legend entries from (x, y), 150px apart.
+
+        items are (kind, text, dashed) triples: a small swatch in kind's colours,
+        dashed or not, followed by the text.
+        """
         for i, (kind, s, dashed) in enumerate(items):
             xx = x + i * 150
             dash = ' stroke-dasharray="4 3"' if dashed else ""
@@ -84,11 +117,13 @@ class Svg:
             self.text(xx + 22, y, s, size=12, color=C["muted"])
 
     def save(self, path):
+        """Close the document and write it to path, overwriting any existing file."""
         self.parts.append("</svg>")
         Path(path).write_text("\n".join(self.parts) + "\n")
 
 
 def flow(out):
+    """Write the diagram of a change's path, pull request to cluster, to out (flow.svg)."""
     s = Svg(900, 660, "gitops: from a pull request to the cluster",
             "A pull request is checked by rendering before it merges; each cluster's Argo CD applies main; "
             "Crossplane carries objects into the site's services.")
@@ -125,6 +160,7 @@ def flow(out):
 
 
 def tenancy(out):
+    """Write the diagram of what the platform and a team each control to out (tenancy.svg)."""
     s = Svg(900, 610, "gitops: a team's bounds",
             "The platform decides where a team may deploy, from applications/; the team decides what, "
             "from its own repositories.")

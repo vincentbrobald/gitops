@@ -42,22 +42,34 @@ from pathlib import Path
 
 import yaml
 
+# The gitops checkout: GITOPS_ROOT, or the repository this script is in.
 ROOT = Path(os.environ.get("GITOPS_ROOT") or Path(__file__).resolve().parent.parent).resolve()
+# The recipient a published applications/.sops.yaml holds until a cluster's
+# recipients replace it.
 PLACEHOLDER = "age1-replace-with-your-age-public-key"
 
 
 def read(path: Path) -> str:
+    """Return the content of the credential file path, stripped; exit with a message if it is missing."""
     if not path.is_file():
         raise SystemExit(f"missing: {path} (made by the infra playbooks, or by hand: see the module's docstring)")
     return path.read_text().strip()
 
 
 def secret(namespace: str, name: str, data: dict[str, str], labels: dict[str, str] | None = None) -> dict:
+    """Return an Opaque Secret manifest holding data as stringData, with labels if given."""
     meta = {"name": name, "namespace": namespace} | ({"labels": labels} if labels else {})
     return {"apiVersion": "v1", "kind": "Secret", "metadata": meta, "type": "Opaque", "stringData": data}
 
 
 def wanted(a: argparse.Namespace) -> dict[str, dict | None]:
+    """Return the Secret manifest to write for each file, by path relative to the cluster folder.
+
+    Reads the credentials from --secrets-dir (exits if one is missing). The
+    argocd-preview repository credentials are None without --gitops-ssh-key.
+    The oauth2-proxy cookie secret is new random on every call, so `check`
+    compares only its shape (see same()).
+    """
     s = a.secrets_dir
     keycloak = a.keycloak_url or f"https://oauth.{a.domain}"
     forgejo = a.forgejo_url or f"https://forgejo.{a.domain}"
@@ -92,6 +104,11 @@ def wanted(a: argparse.Namespace) -> dict[str, dict | None]:
 
 
 def sops(*args: str, cwd: Path, stdin: str | None = None) -> str:
+    """Run sops (SOPS, default "sops" on PATH) with args in cwd and return its stdout.
+
+    Running in the cluster folder makes sops pick up that folder's .sops.yaml.
+    Exits with sops's error output if it fails.
+    """
     p = subprocess.run([os.environ.get("SOPS", "sops"), *args], input=stdin, capture_output=True, text=True, cwd=cwd)
     if p.returncode != 0:
         raise SystemExit(f"sops {args[0]} failed: {p.stderr.strip()}")
@@ -99,12 +116,19 @@ def sops(*args: str, cwd: Path, stdin: str | None = None) -> str:
 
 
 def data_of(doc: dict) -> dict[str, str]:
+    """Return a Secret's values as strings: stringData if it has any, else data base64-decoded."""
     if doc.get("stringData"):
         return {k: str(v) for k, v in doc["stringData"].items()}
     return {k: base64.b64decode(v).decode() for k, v in (doc.get("data") or {}).items()}
 
 
 def same(rel: str, have: dict[str, str], want: dict[str, str]) -> bool:
+    """Tell whether the existing values have match the wanted values want for file rel.
+
+    The random cookie secret only needs the same keys and a length of 16, 24
+    or 32; the SSH key is compared without surrounding whitespace, and Harbor's
+    credentials JSON by value rather than by text.
+    """
     if rel.endswith("oauth2-proxy.enc.yaml"):
         return set(have) == set(want) and len(have["cookie-secret"]) in (16, 24, 32)
     if rel.endswith("creds-forgejo.enc.yaml"):
@@ -117,11 +141,13 @@ def same(rel: str, have: dict[str, str], want: dict[str, str]) -> bool:
 
 
 def recipients(cluster: Path) -> str:
+    """Return the age recipients (comma-separated) of the first creation rule of the cluster's .sops.yaml."""
     rules = yaml.safe_load((cluster / ".sops.yaml").read_text())["creation_rules"]
     return rules[0]["age"]
 
 
 def main(argv: list[str]) -> int:
+    """Run `write` or `check` (see the module docstring); return 1 if `check` found a difference, else 0."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["write", "check"])
     ap.add_argument("--cluster", required=True, help="the folder clusters/<cluster>")
@@ -163,6 +189,8 @@ def main(argv: list[str]) -> int:
         if a.command == "check":
             print("applications/.sops.yaml: still the placeholder"); differs += 1
         else:
+            # Replace the placeholder, or a comma-separated run of them, with the
+            # cluster's recipients.
             apps.write_text(re.sub(rf"{re.escape(PLACEHOLDER)}(,{re.escape(PLACEHOLDER)})*", recipients(cluster),
                                    apps.read_text()))
             print("applications/.sops.yaml: the cluster's recipients")

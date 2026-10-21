@@ -8,12 +8,28 @@
 # are also in the annotation preview.argocd/fingerprints (key: fingerprint).
 # Note: sops re-encrypts every value of a file it edits, so an edited file
 # shows all its keys as changed.
+#
+# Usage: kustomize runs it as /usr/local/bin/ksops in the preview Argo CD's
+# repo-server, with the ResourceList on stdin; the ResourceList with the
+# redacted Secrets goes to stdout. File paths are read relative to the current
+# directory, as kustomize runs it. Environment: YQ, the yq (v4) binary
+# (default /usr/local/bin/yq). It reads the encrypted files only; nothing is
+# decrypted or written.
+# -e, -u and pipefail: a failing yq or a missing file aborts the render
+# instead of yielding a partial Secret.
 set -euo pipefail
 YQ=${YQ:-/usr/local/bin/yq}
 
+# redact FILE prints the sops-encrypted Secret in FILE without its sops
+# metadata, each data/stringData value replaced by "REDACTED sha256:<first 16
+# hex of the ciphertext's sha256>" (base64-encoded under data, as data
+# requires), and annotated preview.argocd/redacted=true and
+# preview.argocd/fingerprints ("key: fingerprint" lines).
 redact() {
     local file=$1 doc field key fp fps=""
     doc=$("$YQ" 'del(.sops)' "$file")
+    # For each key of data and stringData: hash the ciphertext as stored in
+    # the file, record it in fps, and overwrite the value in doc.
     for field in data stringData; do
         while IFS= read -r key; do
             [ -n "$key" ] || continue
@@ -31,6 +47,9 @@ redact() {
         | .metadata.annotations."preview.argocd/fingerprints" = strenv(FPS)'
 }
 
+# Emit a ResourceList whose items are the redacted Secrets of every file in
+# functionConfig.files, in order. sed indents each document by two spaces and
+# turns its first line into a YAML list item ("- ").
 config=$(cat)
 echo "apiVersion: config.kubernetes.io/v1"
 echo "kind: ResourceList"

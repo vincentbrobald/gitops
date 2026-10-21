@@ -16,17 +16,26 @@ import os
 import sys
 from pathlib import Path
 
+# The gitops checkout: GITOPS_ROOT, or the repository this script is in.
 ROOT = Path(os.environ.get("GITOPS_ROOT") or Path(__file__).resolve().parent.parent).resolve()
+# The folders under each cluster folder that deploy-talos.py owns.
 OWNED = ("addons/generated", "generated")
 
 
 def check_cluster(c: Path, errors: list[str]) -> int:
+    """Check cluster folder c's generated files against its CHECKSUMS; return how many it lists.
+
+    Appends a message to errors for each file missing, changed or not listed,
+    and for owned files without a CHECKSUMS (then returns 0).
+    """
     sums = c / "generated" / "CHECKSUMS"
     owned = sorted(f for top in OWNED if (c / top).is_dir() for f in (c / top).rglob("*") if f.is_file())
     if not sums.is_file():
         if owned:
             errors.append(f"{c.relative_to(ROOT)}: generated files without generated/CHECKSUMS")
         return 0
+    # CHECKSUMS lines are "<sha256> <path relative to the cluster folder>",
+    # as sha256sum writes them; blank and # lines are skipped.
     listed = {}
     for line in sums.read_text().splitlines():
         if not line.strip() or line.startswith("#"):
@@ -47,6 +56,7 @@ def check_cluster(c: Path, errors: list[str]) -> int:
 
 
 def main(argv: list[str]) -> int:
+    """Run `check` over every cluster folder; return 2 (usage on stderr) for other arguments, 1 on errors, else 0."""
     if argv != ["check"]:
         print(__doc__, file=sys.stderr)
         return 2

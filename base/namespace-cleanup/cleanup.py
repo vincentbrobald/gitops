@@ -34,6 +34,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+# In-cluster service account files (CA, token) and the API server address.
 SA = "/var/run/secrets/kubernetes.io/serviceaccount"
 API = "https://kubernetes.default.svc"
 LABEL = "cleanup.example.org/when-orphaned"
@@ -42,24 +43,40 @@ SINCE = "cleanup.example.org/orphaned-since"
 ARGOCD_NAMESPACE = os.environ.get("ARGOCD_NAMESPACE", "argocd")
 GRACE = int(os.environ.get("GRACE_SECONDS", "600"))
 DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
+# Monotonic time by which the whole run must be done; retries never wait past it.
 DEADLINE = time.monotonic() + int(os.environ.get("RUN_SECONDS", "200"))
 
 CTX = ssl.create_default_context(cafile=f"{SA}/ca.crt")
 TOKEN = open(f"{SA}/token").read().strip()
 
 
+# HTTP statuses retried as a busy or restarting API server, and the number of
+# tries per request (first attempt included).
 RETRY_CODES = {429, 500, 502, 503, 504}
 ATTEMPTS = 5
 
 
 def call(method: str, path: str, body: dict | None = None, ctype: str = "application/json") -> dict:
+    """Send a request to the API server and return the decoded JSON response.
+
+    body is sent as JSON with Content-Type ctype; an empty response body
+    returns {}. A retryable status (RETRY_CODES), a connection error or a
+    timeout is retried up to ATTEMPTS times; any other HTTP error, or running
+    out of attempts or of time before DEADLINE, raises the last
+    urllib.error.HTTPError / URLError / TimeoutError.
+    """
     data = json.dumps(body).encode() if body is not None else None
     for attempt in range(ATTEMPTS):
         req = urllib.request.Request(API + path, method=method, data=data,
                                      headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": ctype})
+        # The timeout is at most 30s and never runs past DEADLINE (but at least 1s).
         try:
             with urllib.request.urlopen(req, context=CTX, timeout=max(1, min(30, DEADLINE - time.monotonic()))) as r:
                 return json.loads(r.read() or b"{}")
+        # HTTPError is a URLError, so it must be caught first. Wait for
+        # Retry-After (capped at 30s) when the server sends whole seconds,
+        # otherwise back off exponentially (1, 2, 4, 8s); give up rather than
+        # sleep past DEADLINE.
         except urllib.error.HTTPError as e:
             after = e.headers.get("Retry-After", "")
             wait = min(int(after), 30) if after.isdigit() else 2 ** attempt
@@ -76,10 +93,12 @@ def call(method: str, path: str, body: dict | None = None, ctype: str = "applica
 
 
 def log(ns: str, msg: str) -> None:
+    """Print msg prefixed with the namespace name, flushed at once for the Job's log."""
     print(f"{ns}: {msg}", flush=True)
 
 
 def managed_kinds() -> list[tuple[str, str, str]]:
+    """Return (group, storage version, plural) of every namespaced CRD in category "managed"."""
     kinds = []
     for crd in call("GET", "/apis/apiextensions.k8s.io/v1/customresourcedefinitions")["items"]:
         spec = crd["spec"]
@@ -90,6 +109,12 @@ def managed_kinds() -> list[tuple[str, str, str]]:
 
 
 def remaining(ns: str, kinds: list[tuple[str, str, str]]) -> list[str]:
+    """Return "plural.group/name" of the managed resources of kinds left in namespace ns.
+
+    Only the first page (50) of each kind is listed: enough to tell whether
+    any is left and to name a few. A kind whose API returns 404 (CRD removed
+    since it was listed) is skipped.
+    """
     left = []
     for group, version, plural in kinds:
         try:
@@ -103,11 +128,18 @@ def remaining(ns: str, kinds: list[tuple[str, str, str]]) -> list[str]:
 
 
 def annotate(ns: str, value: str | None) -> None:
+    """Set the orphaned-since annotation of namespace ns to value; None removes it (merge patch)."""
     call("PATCH", f"/api/v1/namespaces/{ns}", {"metadata": {"annotations": {SINCE: value}}},
          ctype="application/merge-patch+json")
 
 
 def main() -> int:
+    """Run one pass over the opted-in namespaces (see the module docstring) and return 0.
+
+    Each namespace advances at most one step per run: mark orphaned, wait for
+    the grace period, wait for Crossplane, delete. With DRY_RUN only the log
+    is written. API errors propagate and fail the run.
+    """
     sel = urllib.parse.quote(f"{LABEL}=true")
     namespaces = call("GET", f"/api/v1/namespaces?labelSelector={sel}")["items"]
     kinds = None
@@ -138,6 +170,7 @@ def main() -> int:
         if waited < GRACE:
             log(ns, f"orphaned for {waited}s of {GRACE}s")
             continue
+        # The managed kinds are listed once per run, and only if a namespace gets this far.
         if kinds is None:
             kinds = managed_kinds()
         left = remaining(ns, kinds)
