@@ -243,6 +243,9 @@ def scan() -> tuple[list[Team], list[str]]:
                 envs = sorted(p for p in (nd / "env").iterdir() if p.is_dir()) if (nd / "env").is_dir() else []
                 if not envs:
                     errors.append(f"{nrel}: no environment (env/<env>/kustomization.yaml)")
+                # Files whose ListenerSets were read already: the base is shared
+                # by every environment and must be read once.
+                read: set[Path] = set()
                 for ed in envs:
                     erel = ed.relative_to(ROOT)
                     if not ENV.match(ed.name):
@@ -262,10 +265,11 @@ def scan() -> tuple[list[Team], list[str]]:
                     team.namespaces.append(ns)
                     # Every ListenerSet host name in the environment and its base
                     # must start with "<team>-" (first DNS label) and be claimed
-                    # only once across the tree. The base is read again for each
-                    # environment, so a host name set in the base would be
-                    # reported as claimed by itself from the second environment on.
+                    # only once across the tree.
                     for f in sorted(ed.rglob("*.y*ml")) + sorted(base.rglob("*.y*ml")):
+                        if f in read:
+                            continue
+                        read.add(f)
                         for d in yaml_docs(f):
                             if d.get("kind") != "ListenerSet":
                                 continue
