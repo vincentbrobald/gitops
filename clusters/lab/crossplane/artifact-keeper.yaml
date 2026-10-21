@@ -7,7 +7,7 @@ kind: Provider
 metadata:
   name: artifact-keeper
 spec:
-  package: docker.io/vincentbrobald/provider-artifact-keeper:v0.2.1-61029a3
+  package: docker.io/vincentbrobald/provider-artifact-keeper:v0.2.2-3e0dda2
   runtimeConfigRef:
     name: provider-artifact-keeper
 ---
