@@ -25,6 +25,11 @@ argocd:
   # Must match the clusters' Argo CD (chart 10.10.5): the bundled kustomize
   # and helm decide the output, so another version gives false diffs.
   version: v3.5.5
+  # The clusters' argocd-cm settings that change rendering, for gitops-check's
+  # in-process renderer (argocd-render); the preview has its own (its Helm
+  # values, clusters/lab/addons/argocd-preview.yaml): keep both alike.
+  cm:
+    kustomize.buildOptions: --enable-alpha-plugins --enable-exec   # ksops generators
 
 # Clusters known to the render-only Argo CD. Destinations and the cluster
 # generator resolve against this list; keep the labels identical to the real
