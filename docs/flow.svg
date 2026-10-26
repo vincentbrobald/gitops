@@ -24,7 +24,7 @@
 <rect x="615" y="176" width="250" height="62" rx="8" fill="#e3f4e8" stroke="#2f8a4c" stroke-width="1.5"/>
 <text x="740.0" y="194.6" text-anchor="middle" font-size="13" fill="#1f2933" font-weight="600">gitops-check</text>
 <text x="740.0" y="211.6" text-anchor="middle" font-size="12" fill="#52606d">renders before and after</text>
-<text x="740.0" y="228.6" text-anchor="middle" font-size="12" fill="#52606d">with argocd-preview</text>
+<text x="740.0" y="228.6" text-anchor="middle" font-size="12" fill="#52606d">with Argo CD's code</text>
 <path d="M190,124 L270,136" fill="none" stroke="#7b8794" stroke-width="1.6" marker-end="url(#a)"/>
 <rect x="209.6" y="105" width="36.9" height="19" rx="3" fill="#ffffff" fill-opacity="0.92"/>
 <text x="228" y="119.0" text-anchor="middle" font-size="12" fill="#52606d">push</text>

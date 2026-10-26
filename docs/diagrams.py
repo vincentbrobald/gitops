@@ -136,7 +136,7 @@ def flow(out):
     s.box(270, 186, 260, 52, "tool", ["main (protected)", "merges only when the check is green"])
     s.box(600, 80, 280, 172, "net", title="merge check · gitops-ci")
     s.box(615, 110, 250, 56, "wk", ["tools/ scripts", "check the tree; generate what follows"])
-    s.box(615, 176, 250, 62, "wk", ["gitops-check", "renders before and after", "with argocd-preview"])
+    s.box(615, 176, 250, 62, "wk", ["gitops-check", "renders before and after", "with Argo CD's code"])
     s.line([(190, 124), (270, 136)], label="push", lx=228, ly=118)
     s.line([(530, 128), (615, 128)])
     s.line([(615, 150), (530, 150)])

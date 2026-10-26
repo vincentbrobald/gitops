@@ -42,7 +42,7 @@ manages them must run on exactly one cluster. Today that is `lab`:
 | Crossplane and its providers (`crossplane/`, `registries/`) | two Crossplanes managing the same Keycloak client, Forgejo team or Harbor project would overwrite each other forever, each undoing the other's "drift" |
 | the teams (`applications/`, `addons/teams.yaml`) | a team's Keycloak group, Forgejo team, repositories and Harbor project are site objects, made through Crossplane; `tools/teams.py` refuses teams on more than one cluster, and the teams' Secrets are encrypted for one cluster's key (`applications/.sops.yaml`) |
 | Pipelines-as-Code and the platform CI repositories (`tekton/`, `ci/`, `addons/ci.yaml`) | Forgejo sends each repository's webhook to one address; one CI is enough for the site |
-| the merge checks' render-only Argo CD (`argocd-preview`) | it renders every cluster's folder; it needs no cluster of its own |
+| the render-only Argo CD (`argocd-preview`), which the merge check no longer uses | it renders every cluster's folder; it needs no cluster of its own |
 
 A cluster without these is a full Kubernetes cluster with its add-ons, logins,
 certificates, backups and GitOps, deployed from this repository like `lab`. It

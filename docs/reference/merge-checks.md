@@ -31,8 +31,8 @@ Forgejo credentials are mounted only into the steps `clone`, `generate` and
 
 ## gitops-check
 
-Renders the pull request before and after with a render-only Argo CD
-(`argocd-preview`, the clusters' version), starting from the entry points in
+Renders the pull request before and after with Argo CD's own code at the
+clusters' version, in the check's pod, starting from the entry points in
 `.gitops-check.yaml`.
 
 | Blocks the merge (errors) | Reported only (warnings) |

@@ -68,7 +68,7 @@ LICENSE, NOTICE, LICENSES/    MIT for our files; NOTICE: the vendored releases' 
 | `addons/crossplane*.yaml`, `crossplane/`, `registries/`, `addons/harbor.yaml`, `addons/artifact-keeper.yaml` | | yes: Crossplane manages site objects |
 | `addons/teams.yaml`, `addons/team-policies.yaml`, `addons/namespace-cleanup.yaml`, `applications/` | | yes: the teams |
 | `addons/ci.yaml`, `ci/`, `tekton/`, `addons/tekton-*.yaml`, `addons/pipelines-as-code.yaml` | | yes: the site's CI |
-| `addons/argocd-preview.yaml`, `argocd-preview/` | | yes: the merge checks |
+| `addons/argocd-preview.yaml`, `argocd-preview/` | | yes: the render-only Argo CD, which the merge check no longer uses |
 
 Why: [Several clusters](../explanation/several-clusters.md). How:
 [Add a cluster](../how-to/add-a-cluster.md).
