@@ -74,9 +74,9 @@ moves into a chart. See [Architecture](architecture.md#two-writers).
 
 ### Render before merge
 
-**Decision.** Every pull request is rendered before and after by a
-render-only Argo CD of the clusters' version (gitops-scanner), and errors
-block the merge.
+**Decision.** Every pull request is rendered before and after by Argo CD's
+own code at the clusters' version (gitops-scanner), and errors block the
+merge.
 **Why.** Changes break where they are rendered, not where they are written:
 a chart value or generator template breaks an Application elsewhere.
 **Alternatives.** Linting and schema checks only (miss render failures);

@@ -40,7 +40,7 @@ new project doesn't permit is refused at sync and shown; nothing is pruned.
 
 ## Checked before merge
 
-The render-only Argo CD of the merge check renders everything in `default`.
+The merge check renders everything in project `default`.
 The check therefore compares every Application against the AppProject in the
 same rendering: a source, destination, kind or namespace the project doesn't
 permit blocks the merge before it reaches a cluster.

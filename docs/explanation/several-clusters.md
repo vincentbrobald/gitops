@@ -55,7 +55,7 @@ The merge check renders every cluster's folder, from one entry point per
 cluster in `.gitops-check.yaml`; a folder without an entry point is reported
 as unreached. `tools/generated.py` checks every cluster's generated files.
 
-The render-only Argo CD knows clusters by their server URL. Every cluster's
+The merge check knows clusters by their server URL (`clusters` in `.gitops-check.yaml`). Every cluster's
 Applications deploy to the same in-cluster URL, so a new cluster's entry point
 names the existing `lab` cluster entry: destinations resolve the same way.
 Only an ApplicationSet with a cluster generator selecting clusters by label

@@ -1,7 +1,8 @@
 # Merge-request checks of this repository, run by Pipelines-as-Code on
 # cluster lab (namespace gitops-ci) for every pull request to main: the
 # gitops-check image (alice/gitops-scanner) renders the pull request
-# before and after with the render-only Argo CD (argocd-preview), checks the
+# before and after with Argo CD's own code, in this pod (argocd-render, the
+# clusters' Argo CD version; argocd.cm in .gitops-check.yaml), checks the
 # result and posts the report on the pull request. Its commit status
 # "Pipelines as Code CI / gitops-check" is required to merge.
 #
@@ -141,11 +142,11 @@ spec:
               workspaces:
                 - {name: git-auth}
                 - {name: ca}
+              # No ARGOCD_SERVER: argocd-render renders in process, from the
+              # clone; Helm's .Capabilities come from this cluster's discovery
+              # (the service account's token). With ARGOCD_SERVER and
+              # ARGOCD_TOKEN (Secret argocd-preview), the preview would render.
               env:
-                - name: ARGOCD_SERVER
-                  valueFrom: {secretKeyRef: {name: argocd-preview, key: server}}
-                - name: ARGOCD_TOKEN
-                  valueFrom: {secretKeyRef: {name: argocd-preview, key: token}}
                 - {name: KUBECONFORM_CACHE, value: /tekton/home/kubeconform}
               script: |
                 #!/bin/sh

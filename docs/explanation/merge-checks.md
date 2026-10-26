@@ -10,8 +10,8 @@ What runs: [Merge checks](../reference/merge-checks.md).
 A change to this repository rarely breaks where it is made: a chart value, a
 generator template, an ApplicationSet parameter breaks what Argo CD renders
 from it, somewhere else. So the check renders the whole repository twice,
-before (`main`) and after (the pull request), with a render-only Argo CD of
-the same version as the clusters', and compares. What would fail on the
+before (`main`) and after (the pull request), with Argo CD's own code at
+the clusters' version, and compares. What would fail on the
 cluster fails in the pull request; what would change on the cluster shows as
 a per-resource diff for the reviewer.
 
